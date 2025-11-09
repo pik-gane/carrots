@@ -13,6 +13,7 @@ const prisma = new PrismaClient();
  * LiabilityCalculator - Core engine for calculating liabilities based on conditional commitments
  * 
  * Implements fixed-point algorithm from the game-theoretic framework:
+ * Finds the LARGEST fixed point by starting from maximum values and iteratively reducing
  * L_i(a) = max { c_i(a, C_j) | j ∈ commitments, condition(C_j) is satisfied }
  */
 export class LiabilityCalculator {
@@ -40,10 +41,10 @@ export class LiabilityCalculator {
     // Extract all unique actions
     const actions = this.extractUniqueActions(commitments);
 
-    // Initialize liabilities to zero
-    let liabilities = this.initializeLiabilities(userIds, actions);
+    // Initialize liabilities to maximum values (largest fixed point approach)
+    let liabilities = this.initializeLiabilitiesToMax(commitments, userIds, actions);
 
-    // Fixed-point iteration
+    // Fixed-point iteration: iteratively reduce to find largest fixed point
     let previousLiabilities: LiabilityMap | null = null;
     let iterations = 0;
 
@@ -53,36 +54,34 @@ export class LiabilityCalculator {
     ) {
       previousLiabilities = this.deepCopyLiabilities(liabilities);
 
-      for (const commitment of commitments) {
-        const conditionMet = this.evaluateCondition(
-          commitment.parsedCommitment.condition,
-          liabilities
-        );
+      // For each user-action pair, compute the largest committed-to value
+      for (const userId of userIds) {
+        for (const action of actions) {
+          let maxCommittedValue = 0;
+          let effectiveCommitments: string[] = [];
 
-        if (conditionMet) {
-          const userId = commitment.creatorId;
-          const promise = commitment.parsedCommitment.promise;
-          const action = promise.action;
-          const amount = promise.minAmount;
+          for (const commitment of commitments) {
+            if (commitment.creatorId === userId && commitment.parsedCommitment.promise.action === action) {
+              const conditionMet = this.evaluateCondition(
+                commitment.parsedCommitment.condition,
+                liabilities
+              );
 
-          // Update liability: take maximum of current and promised amount
-          if (!liabilities[userId][action]) {
-            liabilities[userId][action] = {
-              amount: 0,
-              unit: promise.unit,
-              effectiveCommitmentIds: [],
-            };
-          }
-
-          if (amount > liabilities[userId][action].amount) {
-            liabilities[userId][action].amount = amount;
-            liabilities[userId][action].effectiveCommitmentIds = [commitment.id];
-          } else if (amount === liabilities[userId][action].amount) {
-            // Track all commitments that contribute to this liability
-            if (!liabilities[userId][action].effectiveCommitmentIds.includes(commitment.id)) {
-              liabilities[userId][action].effectiveCommitmentIds.push(commitment.id);
+              if (conditionMet) {
+                const promisedAmount = commitment.parsedCommitment.promise.minAmount;
+                if (promisedAmount > maxCommittedValue) {
+                  maxCommittedValue = promisedAmount;
+                  effectiveCommitments = [commitment.id];
+                } else if (promisedAmount === maxCommittedValue && maxCommittedValue > 0) {
+                  effectiveCommitments.push(commitment.id);
+                }
+              }
             }
           }
+
+          // Update liability to the computed maximum
+          liabilities[userId][action].amount = maxCommittedValue;
+          liabilities[userId][action].effectiveCommitmentIds = effectiveCommitments;
         }
       }
 
@@ -197,6 +196,57 @@ export class LiabilityCalculator {
         liabilities[userId][action] = {
           amount: 0,
           unit: '',
+          effectiveCommitmentIds: [],
+        };
+      }
+    }
+
+    return liabilities;
+  }
+
+  /**
+   * Initialize liabilities to maximum values (for largest fixed point)
+   * Start from the largest value occurring in any condition or promise
+   */
+  private initializeLiabilitiesToMax(
+    commitments: CommitmentWithRelations[],
+    userIds: string[],
+    actions: string[]
+  ): LiabilityMap {
+    const liabilities: LiabilityMap = {};
+
+    // Find maximum value for each action across all commitments
+    const maxValues: { [action: string]: { amount: number; unit: string } } = {};
+    
+    for (const commitment of commitments) {
+      const parsed = commitment.parsedCommitment;
+      
+      // Check promise values
+      const promiseAction = parsed.promise.action;
+      if (!maxValues[promiseAction] || parsed.promise.minAmount > maxValues[promiseAction].amount) {
+        maxValues[promiseAction] = {
+          amount: parsed.promise.minAmount,
+          unit: parsed.promise.unit,
+        };
+      }
+      
+      // Check condition values
+      const conditionAction = parsed.condition.action;
+      if (!maxValues[conditionAction] || parsed.condition.minAmount > maxValues[conditionAction].amount) {
+        maxValues[conditionAction] = {
+          amount: parsed.condition.minAmount,
+          unit: parsed.condition.unit,
+        };
+      }
+    }
+
+    // Initialize all user-action pairs to their maximum values
+    for (const userId of userIds) {
+      liabilities[userId] = {};
+      for (const action of actions) {
+        liabilities[userId][action] = {
+          amount: maxValues[action]?.amount || 0,
+          unit: maxValues[action]?.unit || '',
           effectiveCommitmentIds: [],
         };
       }
