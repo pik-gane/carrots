@@ -1,4 +1,4 @@
-import { liabilityCalculator } from '../liabilityCalculator';
+import { liabilityCalculator } from './liabilityCalculator';
 import { PrismaClient } from '@prisma/client';
 
 // Mock Prisma Client
@@ -50,18 +50,18 @@ describe('LiabilityCalculator', () => {
           status: 'active',
           conditionType: 'single_user',
           parsedCommitment: {
-            condition: {
-              type: 'single_user',
+            conditions: [{
               targetUserId: aliceId,
               action: 'work',
               minAmount: 5,
               unit: 'hours',
-            },
-            promise: {
+            }],
+            promises: [{
               action: 'work',
-              minAmount: 3,
+              baseAmount: 3,
+              proportionalAmount: 0,
               unit: 'hours',
-            },
+            }],
           },
           creator: {
             id: bobId,
@@ -79,18 +79,18 @@ describe('LiabilityCalculator', () => {
           status: 'active',
           conditionType: 'single_user',
           parsedCommitment: {
-            condition: {
-              type: 'single_user',
+            conditions: [{
               targetUserId: aliceId,
               action: 'work',
               minAmount: 5,
               unit: 'hours',
-            },
-            promise: {
+            }],
+            promises: [{
               action: 'work',
-              minAmount: 3,
+              baseAmount: 3,
+              proportionalAmount: 0,
               unit: 'hours',
-            },
+            }],
           },
           creator: { id: bobId, username: 'bob' },
         },
@@ -101,17 +101,18 @@ describe('LiabilityCalculator', () => {
           status: 'active',
           conditionType: 'aggregate',
           parsedCommitment: {
-            condition: {
-              type: 'aggregate',
+            conditions: [{
+              targetUserId: bobId,
               action: 'work',
               minAmount: 2,
               unit: 'hours',
-            },
-            promise: {
+            }],
+            promises: [{
               action: 'work',
-              minAmount: 5,
+              baseAmount: 5,
+              proportionalAmount: 0,
               unit: 'hours',
-            },
+            }],
           },
           creator: { id: aliceId, username: 'alice' },
         },
@@ -155,17 +156,18 @@ describe('LiabilityCalculator', () => {
           status: 'active',
           conditionType: 'aggregate',
           parsedCommitment: {
-            condition: {
-              type: 'aggregate',
+            conditions: [{
+              targetUserId: userIds[1],
               action: 'work',
               minAmount: 10,
               unit: 'hours',
-            },
-            promise: {
+            }],
+            promises: [{
               action: 'work',
-              minAmount: 5,
+              baseAmount: 5,
+              proportionalAmount: 0,
               unit: 'hours',
-            },
+            }],
           },
           creator: { id: userIds[0], username: 'user1' },
         },

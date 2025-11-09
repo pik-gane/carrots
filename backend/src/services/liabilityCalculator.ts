@@ -229,7 +229,9 @@ export class LiabilityCalculator {
 
   /**
    * Initialize liabilities to zero for all users and actions
+   * Note: Currently unused but kept for potential future use (e.g., smallest fixed point algorithm)
    */
+  // @ts-expect-error - Method intentionally kept for potential future use
   private initializeLiabilities(userIds: string[], actions: string[]): LiabilityMap {
     const liabilities: LiabilityMap = {};
 
