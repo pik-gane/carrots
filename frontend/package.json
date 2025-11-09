@@ -57,7 +57,8 @@
       "last 1 safari version"
     ]
   },
-  "resolutions": {
-    "ajv": "^6.12.6"
+  "overrides": {
+    "ajv": "6.12.6",
+    "ajv-keywords": "3.5.2"
   }
 }
