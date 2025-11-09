@@ -4,6 +4,32 @@ The authentication system is implemented as a REST API on the backend. Since the
 
 ## Prerequisites
 
+### Option A: Using Docker Compose (Recommended)
+
+1. **Start all services with Docker Compose:**
+   ```bash
+   docker compose up -d
+   ```
+   
+   This will start:
+   - PostgreSQL database on port 5432
+   - Backend API on http://localhost:3001
+   - Frontend on http://localhost:3000
+
+   The database migrations will run automatically on startup.
+
+2. **Check logs if needed:**
+   ```bash
+   docker compose logs backend
+   ```
+
+3. **Stop services:**
+   ```bash
+   docker compose down
+   ```
+
+### Option B: Running Locally
+
 1. **Start the backend server:**
    ```bash
    cd backend
@@ -228,7 +254,40 @@ The frontend UI (login/register pages) will be implemented in Phase 2.3 of the i
 
 ## Troubleshooting
 
-### "Connection refused" error
+### "Connection refused" or "Connection reset by peer" error with Docker
+
+If you get connection errors when using Docker Compose:
+
+1. **Check if the backend container is running:**
+   ```bash
+   docker ps
+   ```
+   You should see `carrots-backend-1` in the list.
+
+2. **Check backend logs for errors:**
+   ```bash
+   docker compose logs backend
+   ```
+   Look for any startup errors or database connection issues.
+
+3. **Restart the services:**
+   ```bash
+   docker compose down
+   docker compose up -d
+   ```
+
+4. **Wait a moment for initialization:**
+   The backend needs time to run migrations and start up. Wait 10-15 seconds after `docker compose up -d` before testing.
+
+5. **Rebuild if needed:**
+   If you pulled new code, rebuild the containers:
+   ```bash
+   docker compose down
+   docker compose build
+   docker compose up -d
+   ```
+
+### "Connection refused" error (local development)
 Make sure the backend server is running:
 ```bash
 cd backend

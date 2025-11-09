@@ -8,17 +8,27 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
-# Copy source code
-COPY . .
+# Copy prisma schema first
+COPY prisma ./prisma
 
 # Generate Prisma client
 RUN npx prisma generate
 
+# Copy source code
+COPY . .
+
 # Build TypeScript
 RUN npm run build
 
+# Copy entrypoint script
+COPY ../docker/entrypoint.backend.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Expose port
 EXPOSE 3001
+
+# Use entrypoint for migrations
+ENTRYPOINT ["/entrypoint.sh"]
 
 # Start the application
 CMD ["npm", "start"]
