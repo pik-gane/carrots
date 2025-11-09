@@ -130,7 +130,8 @@ export class LiabilityCalculator {
 
   /**
    * Calculate the total promised amount for a user-action pair given promises
-   * Handles base amounts and proportional (affine linear) contributions
+   * Handles base amounts and proportional (affine linear) contributions with caps
+   * Formula: c_i(Yi) = W0 + Σ_k min(Wk, Dk × max(0, L_Bk(Zk) - Ok))
    */
   private calculatePromisedAmount(
     promises: ParsedCommitment['promises'],
@@ -141,15 +142,23 @@ export class LiabilityCalculator {
 
     for (const promise of promises) {
       if (promise.action === action) {
-        // Add base amount
+        // Add base amount (W0)
         totalAmount += promise.baseAmount;
 
         // Add proportional amount based on reference user's excess
+        // Dk × max(0, L_Bk(Zk) - Ok), capped at Wk
         if (promise.proportionalAmount > 0 && promise.referenceUserId && promise.referenceAction) {
           const referenceAmount = currentLiabilities[promise.referenceUserId]?.[promise.referenceAction]?.amount || 0;
           const threshold = promise.thresholdAmount || 0;
           const excess = Math.max(0, referenceAmount - threshold);
-          totalAmount += promise.proportionalAmount * excess;
+          const proportionalContribution = promise.proportionalAmount * excess;
+          
+          // Apply maximum cap if specified (Wi)
+          const cappedContribution = promise.maxAmount !== undefined
+            ? Math.min(promise.maxAmount, proportionalContribution)
+            : proportionalContribution;
+          
+          totalAmount += cappedContribution;
         }
       }
     }
@@ -240,7 +249,7 @@ export class LiabilityCalculator {
 
   /**
    * Initialize liabilities to maximum values (for largest fixed point)
-   * Start from the largest value occurring in any condition or promise
+   * Uses maxAmount caps from promises to provide clear starting points
    */
   private initializeLiabilitiesToMax(
     commitments: CommitmentWithRelations[],
@@ -255,10 +264,19 @@ export class LiabilityCalculator {
     for (const commitment of commitments) {
       const parsed = commitment.parsedCommitment;
       
-      // Check promise values (base amounts)
+      // Check promise values - use maxAmount caps when available
       for (const promise of parsed.promises) {
         const promiseAction = promise.action;
-        const maxAmount = promise.baseAmount + Math.abs(promise.proportionalAmount) * 1000; // Estimate max proportional
+        
+        // Base amount + maximum proportional contribution (capped at maxAmount)
+        let maxAmount = promise.baseAmount;
+        if (promise.maxAmount !== undefined) {
+          // If maxAmount is specified, use it as the cap
+          maxAmount += promise.maxAmount;
+        } else if (promise.proportionalAmount > 0) {
+          // Otherwise estimate conservatively
+          maxAmount += Math.abs(promise.proportionalAmount) * 1000;
+        }
         
         if (!maxValues[promiseAction] || maxAmount > maxValues[promiseAction].amount) {
           maxValues[promiseAction] = {
@@ -267,12 +285,14 @@ export class LiabilityCalculator {
           };
         }
         
-        // Also track reference actions
+        // Also track reference actions (Zi variables)
         if (promise.referenceAction) {
-          const refAmount = (promise.thresholdAmount || 0) + Math.abs(promise.proportionalAmount) * 1000;
-          if (!maxValues[promise.referenceAction] || refAmount > maxValues[promise.referenceAction].amount) {
+          const refMax = promise.maxAmount !== undefined 
+            ? promise.maxAmount 
+            : (promise.thresholdAmount || 0) + 1000;
+          if (!maxValues[promise.referenceAction] || refMax > maxValues[promise.referenceAction].amount) {
             maxValues[promise.referenceAction] = {
-              amount: refAmount,
+              amount: refMax,
               unit: promise.unit,
             };
           }

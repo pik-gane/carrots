@@ -88,31 +88,40 @@ Carrots is a web application for managing conditional commitments within groups.
 {
   "conditions": [
     {
-      "targetUserId": "uuid",
+      "targetUserId": "alice-uuid",
       "action": "work",
       "minAmount": 5,
       "unit": "hours"
+    },
+    {
+      "targetUserId": "bob-uuid",
+      "action": "review",
+      "minAmount": 3,
+      "unit": "tasks"
     }
   ],
   "promises": [
     {
       "action": "work",
-      "baseAmount": 3,
+      "baseAmount": 10,
       "proportionalAmount": 0,
+      "maxAmount": 10,
       "unit": "hours"
     },
     {
-      "action": "donate",
+      "action": "support",
       "baseAmount": 0,
       "proportionalAmount": 2,
-      "referenceUserId": "uuid",
-      "referenceAction": "work",
-      "thresholdAmount": 10,
-      "unit": "dollars"
+      "referenceUserId": "carol-uuid",
+      "referenceAction": "review",
+      "thresholdAmount": 5,
+      "maxAmount": 20,
+      "unit": "hours"
     }
   ]
 }
 ```
+**Note**: `referenceAction` (Zi) can differ from `action` (Yi), and `maxAmount` (Wi) caps proportional contributions.
 
 ### Liability (Calculated)
 - id (UUID)
@@ -178,45 +187,48 @@ interface CommitmentCondition {
 }
 
 interface CommitmentPromise {
-  action: string;  // Action Yi
+  action: string;  // Action Yi to be performed
   baseAmount: number;  // W0 (constant term)
   proportionalAmount: number;  // Di (coefficient)
   referenceUserId?: string;  // Bi (reference user for proportional)
-  referenceAction?: string;  // Action to track for proportional
+  referenceAction?: string;  // Zi (action to monitor - can differ from Yi)
   thresholdAmount?: number;  // Oi (threshold for "excess")
+  maxAmount?: number;  // Wi (maximum cap to keep liabilities finite)
   unit: string;
 }
 ```
 
-**Example**: "If (A1 does ≥ V1 of X1) AND (A2 does ≥ V2 of X2), then I will do (≥ W0 of Y0) AND (≥ D1 of Y1 for every unit that B1 does of Y1 in excess of O1)"
+**Example**: "If (Alice does ≥5 work) AND (Bob does ≥3 review), then I will do (≥10 work) AND (≥2 support per unit Carol does of review beyond 5, up to 20 support total)"
 
 ### Liability Calculation Algorithm
 
 Based on the game-theoretic framework, the liability calculation finds the **largest fixed point**:
 
-1. **Initialization**: Set all liabilities to maximum values occurring in conditions/promises
+1. **Initialization**: Set all liabilities to maximum values from promises (using maxAmount caps)
 2. **Iterative Reduction**: For each user-action pair (i, a):
    - Compute L_i(a) = max { c_i(a, C_j) | all conditions of C_j are satisfied }
-   - Where c_i(a, C_j) includes base + proportional contributions:
+   - Where c_i(a, C_j) includes base + capped proportional contributions:
      ```
-     c_i(a, C_j) = W0 + Σ_k D_k × max(0, L_Bk(Y_k) - O_k)
+     c_i(a, C_j) = W0 + Σ_k min(Wk, Dk × max(0, L_Bk(Zk) - Ok))
      ```
 3. **Convergence**: Repeat until no liability changes (largest fixed point reached)
 
 **Key Properties**:
 - **Conjunctive conditions**: ALL conditions must be satisfied (AND logic)
-- **Affine linear promises**: Base amount + proportional terms based on others' actions
-- **Largest fixed point**: Start high, iterate down to stable equilibrium
+- **Affine linear promises with caps**: Base amount + proportional terms (capped at maxAmount)
+- **Different action variables**: Can monitor action Zi while promising action Yi
+- **Largest fixed point**: Start at maximum caps, iterate down to stable equilibrium
 - **Monotonic**: Liabilities never increase during iteration
+- **Finite**: maxAmount caps ensure liabilities remain bounded
 
 ```
 L_i(a) = max { c_i(a, C_j) | C_j created by i, all conditions of C_j satisfied }
 
 Condition satisfaction:
-∀k: L_Ak(X_k) ≥ V_k  (all target users meet their thresholds)
+∀k: L_Ak(Xk) ≥ Vk  (all target users meet their thresholds)
 
-Promise value (affine linear):
-c_i(a, C_j) = W0 + Σ_k D_k × max(0, L_Bk(Y_k) - O_k)
+Promise value (affine linear with cap):
+c_i(Yi, C_j) = W0 + Σ_k min(Wk, Dk × max(0, L_Bk(Zk) - Ok))
 ```
 
 ## Natural Language Processing
@@ -239,7 +251,7 @@ Group members: {member_list}
 
 Extract commitment of the form:
 "If ((A1 does at least V1 of X1) AND ... AND (Ak does at least Vk of Xk))
- then I will do (at least W0 of Y0) AND (at least D1 of Y1 for every unit that B1 does of Y1 in excess of O1) AND ..."
+ then I will do (at least W0 of Y0) AND (at least D1 of Y1 for every unit that B1 does of Z1 in excess of O1, up to W1 of Y1 total) AND ..."
 
 Output as JSON:
 {
@@ -247,15 +259,16 @@ Output as JSON:
     {"targetUserId": "...", "action": "...", "minAmount": number, "unit": "..."}
   ],
   "promises": [
-    {"action": "...", "baseAmount": number, "proportionalAmount": number, 
-     "referenceUserId": "...", "referenceAction": "...", "thresholdAmount": number, "unit": "..."}
+    {"action": "Yi", "baseAmount": number, "proportionalAmount": number, 
+     "referenceUserId": "Bi", "referenceAction": "Zi", "thresholdAmount": number, "maxAmount": number, "unit": "..."}
   ]
 }
 
 Notes:
 - Conditions are conjunctive (all must be satisfied)
 - Promises can be constant (baseAmount > 0, proportionalAmount = 0) or proportional
-- For proportional: baseAmount = 0, proportionalAmount = coefficient, referenceUserId/Action = who to track, thresholdAmount = threshold
+- For proportional: proportionalAmount = coefficient Di, referenceUserId = Bi, referenceAction = Zi (can differ from Yi), thresholdAmount = Oi, maxAmount = Wi (cap)
+- maxAmount keeps liabilities finite and provides clear starting values
 
 If unclear, ask for clarification.
 ```

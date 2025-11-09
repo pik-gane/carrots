@@ -13,14 +13,15 @@ export interface CommitmentCondition {
   unit: string;
 }
 
-// Individual promise (can be base or proportional)
+// Individual promise (can be base or proportional with cap)
 export interface CommitmentPromise {
-  action: string; // The action Yi
+  action: string; // The action Yi to be performed
   baseAmount: number; // W0 for first promise, 0 for proportional promises
   proportionalAmount: number; // Di for proportional promises, 0 for base
   referenceUserId?: string; // Bi - user whose excess triggers proportional amount
-  referenceAction?: string; // Yi - the action to track
+  referenceAction?: string; // Zi - the action to monitor (can differ from Yi)
   thresholdAmount?: number; // Oi - the threshold for "excess"
+  maxAmount?: number; // Wi - maximum cap for this promise (keeps liabilities finite)
   unit: string;
 }
 
