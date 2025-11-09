@@ -1,0 +1,90 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdGroups    Group[]           @relation("GroupCreator")
+  groupMemberships GroupMembership[]
+  commitments      Commitment[]
+  liabilities      Liability[]
+}
+
+model Group {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  creatorId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creator     User              @relation("GroupCreator", fields: [creatorId], references: [id])
+  memberships GroupMembership[]
+  commitments Commitment[]
+  liabilities Liability[]
+}
+
+model GroupMembership {
+  id       String   @id @default(uuid())
+  groupId  String
+  userId   String
+  role     String   // "creator" | "member"
+  joinedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model Commitment {
+  id                  String    @id @default(uuid())
+  groupId             String
+  creatorId           String
+  status              String    // "active" | "revoked"
+  conditionType       String    // "single_user" | "aggregate"
+  naturalLanguageText String?
+  parsedCommitment    Json
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  revokedAt           DateTime?
+
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator User  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([creatorId])
+  @@index([status])
+}
+
+model Liability {
+  id                     String   @id @default(uuid())
+  groupId                String
+  userId                 String
+  action                 String
+  amount                 Float
+  unit                   String
+  calculatedAt           DateTime @default(now())
+  effectiveCommitmentIds Json // Array of commitment IDs
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId, action])
+  @@index([groupId])
+  @@index([userId])
+}
