@@ -156,7 +156,7 @@ export class LiabilityCalculator {
 
     return commitments.map((c) => ({
       ...c,
-      parsedCommitment: c.parsedCommitment as ParsedCommitment,
+      parsedCommitment: c.parsedCommitment as unknown as ParsedCommitment,
     }));
   }
 
