@@ -12,6 +12,7 @@ import {
 } from '../utils/auth/validation';
 import { logger } from '../utils/logger';
 import { authenticate } from '../middleware/authenticate';
+import { authRateLimiter, apiRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -20,7 +21,7 @@ const prisma = new PrismaClient();
  * POST /api/auth/register
  * Register a new user
  */
-router.post('/register', async (req: Request, res: Response): Promise<void> => {
+router.post('/register', authRateLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate input
     const validationResult = registerSchema.safeParse(req.body);
@@ -102,7 +103,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
  * POST /api/auth/login
  * Login user
  */
-router.post('/login', async (req: Request, res: Response): Promise<void> => {
+router.post('/login', authRateLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate input
     const validationResult = loginSchema.safeParse(req.body);
@@ -167,7 +168,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
  * POST /api/auth/refresh
  * Refresh access token using refresh token
  */
-router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
+router.post('/refresh', authRateLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate input
     const validationResult = refreshTokenSchema.safeParse(req.body);
@@ -226,7 +227,7 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
  * Logout user (client-side token removal)
  * This endpoint mainly serves as a marker for the client to remove tokens
  */
-router.post('/logout', authenticate, async (_req: Request, res: Response) => {
+router.post('/logout', apiRateLimiter, authenticate, async (_req: Request, res: Response) => {
   res.json({
     message: 'Logout successful',
   });
@@ -236,7 +237,7 @@ router.post('/logout', authenticate, async (_req: Request, res: Response) => {
  * GET /api/auth/me
  * Get current user info
  */
-router.get('/me', authenticate, async (req: Request, res: Response): Promise<void> => {
+router.get('/me', apiRateLimiter, authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user) {
       res.status(401).json({
