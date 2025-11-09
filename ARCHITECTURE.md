@@ -77,27 +77,42 @@ Carrots is a web application for managing conditional commitments within groups.
 - groupId (FK → Group)
 - creatorId (FK → User)
 - status (active | revoked)
-- conditionType (single_user | aggregate)
 - naturalLanguageText (original text)
-- parsedCommitment (JSON structure)
+- parsedCommitment (JSON structure with conditions array and promises array)
 - createdAt
 - updatedAt
 - revokedAt
 
-### CommitmentCondition
-- id (UUID)
-- commitmentId (FK → Commitment)
-- targetUserId (FK → User, nullable for aggregate)
-- targetAction (string)
-- minAmount (numeric)
-- unit (string)
-
-### CommitmentPromise
-- id (UUID)
-- commitmentId (FK → Commitment)
-- promisedAction (string)
-- minAmount (numeric)
-- unit (string)
+**ParsedCommitment Structure (JSON)**:
+```json
+{
+  "conditions": [
+    {
+      "targetUserId": "uuid",
+      "action": "work",
+      "minAmount": 5,
+      "unit": "hours"
+    }
+  ],
+  "promises": [
+    {
+      "action": "work",
+      "baseAmount": 3,
+      "proportionalAmount": 0,
+      "unit": "hours"
+    },
+    {
+      "action": "donate",
+      "baseAmount": 0,
+      "proportionalAmount": 2,
+      "referenceUserId": "uuid",
+      "referenceAction": "work",
+      "thresholdAmount": 10,
+      "unit": "dollars"
+    }
+  ]
+}
+```
 
 ### Liability (Calculated)
 - id (UUID)
@@ -146,44 +161,62 @@ Carrots is a web application for managing conditional commitments within groups.
 ## Commitment Logic Engine
 
 ### Commitment Structure
+
+Commitments support **conjunctive conditions** and **affine linear promises**:
+
 ```typescript
 interface ParsedCommitment {
-  condition: {
-    type: 'single_user' | 'aggregate';
-    targetUserId?: string;  // for single_user
-    action: string;
-    minAmount: number;
-    unit: string;
-  };
-  promise: {
-    action: string;
-    minAmount: number;
-    unit: string;
-  };
+  conditions: CommitmentCondition[];  // Conjunction (AND)
+  promises: CommitmentPromise[];  // Multiple promises
+}
+
+interface CommitmentCondition {
+  targetUserId: string;  // User Ai who must perform action
+  action: string;  // Action Xi
+  minAmount: number;  // Minimum amount Vi
+  unit: string;
+}
+
+interface CommitmentPromise {
+  action: string;  // Action Yi
+  baseAmount: number;  // W0 (constant term)
+  proportionalAmount: number;  // Di (coefficient)
+  referenceUserId?: string;  // Bi (reference user for proportional)
+  referenceAction?: string;  // Action to track for proportional
+  thresholdAmount?: number;  // Oi (threshold for "excess")
+  unit: string;
 }
 ```
 
+**Example**: "If (A1 does ≥ V1 of X1) AND (A2 does ≥ V2 of X2), then I will do (≥ W0 of Y0) AND (≥ D1 of Y1 for every unit that B1 does of Y1 in excess of O1)"
+
 ### Liability Calculation Algorithm
 
-Based on the theory from the paper, the liability calculation follows these steps:
+Based on the game-theoretic framework, the liability calculation finds the **largest fixed point**:
 
-1. **Collect Active Commitments**: Get all active commitments in the group
-2. **Evaluate Conditions**: For each commitment, determine if conditions are met
-3. **Apply Fixed-Point Calculation**: Iteratively calculate liabilities until convergence
-   - Start with zero liabilities for all users
-   - For each iteration:
-     - Evaluate each commitment's condition against current state
-     - If condition is satisfied, add promise to user's liability
-     - Continue until no changes occur (fixed point reached)
-4. **Return Liabilities**: Final liabilities for each user
+1. **Initialization**: Set all liabilities to maximum values occurring in conditions/promises
+2. **Iterative Reduction**: For each user-action pair (i, a):
+   - Compute L_i(a) = max { c_i(a, C_j) | all conditions of C_j are satisfied }
+   - Where c_i(a, C_j) includes base + proportional contributions:
+     ```
+     c_i(a, C_j) = W0 + Σ_k D_k × max(0, L_Bk(Y_k) - O_k)
+     ```
+3. **Convergence**: Repeat until no liability changes (largest fixed point reached)
+
+**Key Properties**:
+- **Conjunctive conditions**: ALL conditions must be satisfied (AND logic)
+- **Affine linear promises**: Base amount + proportional terms based on others' actions
+- **Largest fixed point**: Start high, iterate down to stable equilibrium
+- **Monotonic**: Liabilities never increase during iteration
 
 ```
-L_i(a) = max { c_i(a, C_j) | j ∈ commitments, condition(C_j) is satisfied }
+L_i(a) = max { c_i(a, C_j) | C_j created by i, all conditions of C_j satisfied }
 
-Where:
-- L_i(a) = liability of user i for action a
-- c_i(a, C_j) = commitment amount from commitment C_j
-- Condition satisfaction depends on other users' liabilities (hence fixed-point)
+Condition satisfaction:
+∀k: L_Ak(X_k) ≥ V_k  (all target users meet their thresholds)
+
+Promise value (affine linear):
+c_i(a, C_j) = W0 + Σ_k D_k × max(0, L_Bk(Y_k) - O_k)
 ```
 
 ## Natural Language Processing
@@ -192,10 +225,8 @@ Where:
 1. User enters natural language commitment
 2. Backend sends to LLM with structured prompt
 3. LLM extracts:
-   - Condition type (single_user | aggregate)
-   - Target user (if single_user)
-   - Condition action and amount
-   - Promise action and amount
+   - Array of conditions (conjunctive): each with targetUserId, action, minAmount, unit
+   - Array of promises: each with action, baseAmount, proportionalAmount, referenceUserId (if proportional), referenceAction, thresholdAmount, unit
 4. If ambiguous, LLM requests clarification
 5. Backend validates and stores parsed commitment
 
@@ -206,11 +237,25 @@ Parse the following commitment into structured form:
 
 Group members: {member_list}
 
-Extract:
-1. Condition type (single_user or aggregate)
-2. If single_user: which user is mentioned
-3. Condition: action, minimum amount, unit
-4. Promise: action, minimum amount, unit
+Extract commitment of the form:
+"If ((A1 does at least V1 of X1) AND ... AND (Ak does at least Vk of Xk))
+ then I will do (at least W0 of Y0) AND (at least D1 of Y1 for every unit that B1 does of Y1 in excess of O1) AND ..."
+
+Output as JSON:
+{
+  "conditions": [
+    {"targetUserId": "...", "action": "...", "minAmount": number, "unit": "..."}
+  ],
+  "promises": [
+    {"action": "...", "baseAmount": number, "proportionalAmount": number, 
+     "referenceUserId": "...", "referenceAction": "...", "thresholdAmount": number, "unit": "..."}
+  ]
+}
+
+Notes:
+- Conditions are conjunctive (all must be satisfied)
+- Promises can be constant (baseAmount > 0, proportionalAmount = 0) or proportional
+- For proportional: baseAmount = 0, proportionalAmount = coefficient, referenceUserId/Action = who to track, thresholdAmount = threshold
 
 If unclear, ask for clarification.
 ```

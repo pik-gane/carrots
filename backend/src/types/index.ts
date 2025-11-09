@@ -1,21 +1,26 @@
 // Core domain types for the Carrots application
 
 export interface ParsedCommitment {
-  condition: CommitmentCondition;
-  promise: CommitmentPromise;
+  conditions: CommitmentCondition[]; // Conjunction of conditions
+  promises: CommitmentPromise[]; // Multiple promises (base + proportional)
 }
 
+// Individual condition in a conjunction
 export interface CommitmentCondition {
-  type: 'single_user' | 'aggregate';
-  targetUserId?: string; // Required for single_user, null for aggregate
-  action: string;
-  minAmount: number;
+  targetUserId: string; // The user Ai who must perform the action
+  action: string; // The action Xi
+  minAmount: number; // The minimum amount Vi
   unit: string;
 }
 
+// Individual promise (can be base or proportional)
 export interface CommitmentPromise {
-  action: string;
-  minAmount: number;
+  action: string; // The action Yi
+  baseAmount: number; // W0 for first promise, 0 for proportional promises
+  proportionalAmount: number; // Di for proportional promises, 0 for base
+  referenceUserId?: string; // Bi - user whose excess triggers proportional amount
+  referenceAction?: string; // Yi - the action to track
+  thresholdAmount?: number; // Oi - the threshold for "excess"
   unit: string;
 }
 

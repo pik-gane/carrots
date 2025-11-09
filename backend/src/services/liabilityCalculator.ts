@@ -61,14 +61,21 @@ export class LiabilityCalculator {
           let effectiveCommitments: string[] = [];
 
           for (const commitment of commitments) {
-            if (commitment.creatorId === userId && commitment.parsedCommitment.promise.action === action) {
-              const conditionMet = this.evaluateCondition(
-                commitment.parsedCommitment.condition,
+            if (commitment.creatorId === userId) {
+              // Check if all conditions are satisfied
+              const conditionsMet = this.evaluateConditions(
+                commitment.parsedCommitment.conditions,
                 liabilities
               );
 
-              if (conditionMet) {
-                const promisedAmount = commitment.parsedCommitment.promise.minAmount;
+              if (conditionsMet) {
+                // Calculate promised amount for this action (may include proportional)
+                const promisedAmount = this.calculatePromisedAmount(
+                  commitment.parsedCommitment.promises,
+                  action,
+                  liabilities
+                );
+
                 if (promisedAmount > maxCommittedValue) {
                   maxCommittedValue = promisedAmount;
                   effectiveCommitments = [commitment.id];
@@ -100,38 +107,54 @@ export class LiabilityCalculator {
   }
 
   /**
-   * Evaluate if a commitment condition is satisfied
+   * Evaluate if a commitment's conditions are satisfied (conjunction)
    */
-  private evaluateCondition(
-    condition: ParsedCommitment['condition'],
+  private evaluateConditions(
+    conditions: ParsedCommitment['conditions'],
     currentLiabilities: LiabilityMap
   ): boolean {
-    if (condition.type === 'single_user') {
-      if (!condition.targetUserId) {
-        logger.error('single_user condition missing targetUserId');
-        return false;
-      }
-
+    // All conditions must be satisfied (conjunction)
+    for (const condition of conditions) {
       const userId = condition.targetUserId;
       const action = condition.action;
       const minAmount = condition.minAmount;
 
       const userLiability = currentLiabilities[userId]?.[action]?.amount || 0;
-      return userLiability >= minAmount;
-    } else if (condition.type === 'aggregate') {
-      const action = condition.action;
-      const minAmount = condition.minAmount;
-
-      // Sum liabilities across all users for this action
-      const totalLiability = Object.values(currentLiabilities).reduce(
-        (sum, userActions) => sum + (userActions[action]?.amount || 0),
-        0
-      );
-
-      return totalLiability >= minAmount;
+      if (userLiability < minAmount) {
+        return false;
+      }
     }
 
-    return false;
+    return true;
+  }
+
+  /**
+   * Calculate the total promised amount for a user-action pair given promises
+   * Handles base amounts and proportional (affine linear) contributions
+   */
+  private calculatePromisedAmount(
+    promises: ParsedCommitment['promises'],
+    action: string,
+    currentLiabilities: LiabilityMap
+  ): number {
+    let totalAmount = 0;
+
+    for (const promise of promises) {
+      if (promise.action === action) {
+        // Add base amount
+        totalAmount += promise.baseAmount;
+
+        // Add proportional amount based on reference user's excess
+        if (promise.proportionalAmount > 0 && promise.referenceUserId && promise.referenceAction) {
+          const referenceAmount = currentLiabilities[promise.referenceUserId]?.[promise.referenceAction]?.amount || 0;
+          const threshold = promise.thresholdAmount || 0;
+          const excess = Math.max(0, referenceAmount - threshold);
+          totalAmount += promise.proportionalAmount * excess;
+        }
+      }
+    }
+
+    return totalAmount;
   }
 
   /**
@@ -177,8 +200,19 @@ export class LiabilityCalculator {
 
     for (const commitment of commitments) {
       const parsed = commitment.parsedCommitment;
-      actions.add(parsed.condition.action);
-      actions.add(parsed.promise.action);
+      
+      // Add actions from all conditions
+      for (const condition of parsed.conditions) {
+        actions.add(condition.action);
+      }
+      
+      // Add actions from all promises
+      for (const promise of parsed.promises) {
+        actions.add(promise.action);
+        if (promise.referenceAction) {
+          actions.add(promise.referenceAction);
+        }
+      }
     }
 
     return Array.from(actions);
@@ -221,22 +255,39 @@ export class LiabilityCalculator {
     for (const commitment of commitments) {
       const parsed = commitment.parsedCommitment;
       
-      // Check promise values
-      const promiseAction = parsed.promise.action;
-      if (!maxValues[promiseAction] || parsed.promise.minAmount > maxValues[promiseAction].amount) {
-        maxValues[promiseAction] = {
-          amount: parsed.promise.minAmount,
-          unit: parsed.promise.unit,
-        };
+      // Check promise values (base amounts)
+      for (const promise of parsed.promises) {
+        const promiseAction = promise.action;
+        const maxAmount = promise.baseAmount + Math.abs(promise.proportionalAmount) * 1000; // Estimate max proportional
+        
+        if (!maxValues[promiseAction] || maxAmount > maxValues[promiseAction].amount) {
+          maxValues[promiseAction] = {
+            amount: maxAmount,
+            unit: promise.unit,
+          };
+        }
+        
+        // Also track reference actions
+        if (promise.referenceAction) {
+          const refAmount = (promise.thresholdAmount || 0) + Math.abs(promise.proportionalAmount) * 1000;
+          if (!maxValues[promise.referenceAction] || refAmount > maxValues[promise.referenceAction].amount) {
+            maxValues[promise.referenceAction] = {
+              amount: refAmount,
+              unit: promise.unit,
+            };
+          }
+        }
       }
       
       // Check condition values
-      const conditionAction = parsed.condition.action;
-      if (!maxValues[conditionAction] || parsed.condition.minAmount > maxValues[conditionAction].amount) {
-        maxValues[conditionAction] = {
-          amount: parsed.condition.minAmount,
-          unit: parsed.condition.unit,
-        };
+      for (const condition of parsed.conditions) {
+        const conditionAction = condition.action;
+        if (!maxValues[conditionAction] || condition.minAmount > maxValues[conditionAction].amount) {
+          maxValues[conditionAction] = {
+            amount: condition.minAmount,
+            unit: condition.unit,
+          };
+        }
       }
     }
 
