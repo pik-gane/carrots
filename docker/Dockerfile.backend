@@ -3,25 +3,25 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy package files
-COPY backend/package*.json ./
+COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
 # Copy prisma schema first
-COPY backend/prisma ./prisma
+COPY prisma ./prisma
 
 # Generate Prisma client
 RUN npx prisma generate
 
 # Copy source code
-COPY backend/ .
+COPY . .
 
 # Build TypeScript
 RUN npm run build
 
-# Copy entrypoint script
-COPY docker/entrypoint.backend.sh /entrypoint.sh
+# Copy entrypoint script (now in backend directory)
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Expose port
