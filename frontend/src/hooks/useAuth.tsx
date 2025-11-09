@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import axios from 'axios';
 
 interface User {
   id: string;
@@ -33,7 +32,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, _password: string) => {
     // TODO: Implement actual login API call
     console.log('Login called:', email);
     // const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/login`, {
@@ -44,7 +43,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // localStorage.setItem('token', response.data.token);
   };
 
-  const register = async (username: string, email: string, password: string) => {
+  const register = async (username: string, email: string, _password: string) => {
     // TODO: Implement actual register API call
     console.log('Register called:', username, email);
   };
