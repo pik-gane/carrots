@@ -43,13 +43,13 @@ services:
     ports:
       - "3000:3000"
     environment:
-      REACT_APP_API_URL: http://localhost:3001
+      VITE_API_URL: http://localhost:3001
     depends_on:
       - backend
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: npm start
+    command: npm run dev -- --host 0.0.0.0
 
 volumes:
   postgres_data:
