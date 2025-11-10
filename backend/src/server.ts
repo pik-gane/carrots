@@ -7,7 +7,7 @@ import { errorHandler } from './middleware/errorHandler';
 // Import routes
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
-// import groupRoutes from './routes/groups';
+import groupRoutes from './routes/groups';
 // import commitmentRoutes from './routes/commitments';
 // import liabilityRoutes from './routes/liabilities';
 
@@ -54,7 +54,7 @@ app.get('/api', (_req, res) => {
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-// app.use('/api/groups', groupRoutes);
+app.use('/api/groups', groupRoutes);
 // app.use('/api/commitments', commitmentRoutes);
 // app.use('/api/liabilities', liabilityRoutes);
 
