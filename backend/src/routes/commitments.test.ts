@@ -26,7 +26,7 @@ jest.mock('@prisma/client', () => {
 // Mock authenticate middleware
 jest.mock('../middleware/authenticate', () => ({
   authenticate: jest.fn((req, _res, next) => {
-    req.user = { userId: 'user-123', email: 'test@example.com', type: 'access' };
+    req.user = { userId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479', email: 'test@example.com', type: 'access' };
     next();
   }),
 }));
@@ -47,11 +47,11 @@ describe('Commitment Routes', () => {
   describe('POST /api/commitments', () => {
     it('should create a new commitment with single_user condition', async () => {
       const newCommitment = {
-        groupId: 'group-123',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         parsedCommitment: {
           condition: {
             type: 'single_user',
-            targetUserId: 'user-456',
+            targetUserId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
             action: 'work',
             minAmount: 5,
             unit: 'hours',
@@ -66,24 +66,24 @@ describe('Commitment Routes', () => {
       };
 
       const groupMembership = {
-        id: 'membership-123',
-        groupId: 'group-123',
-        userId: 'user-123',
+        id: '147ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        userId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         role: 'member',
-        group: { id: 'group-123', name: 'Test Group' },
+        group: { id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', name: 'Test Group' },
       };
 
       const targetMembership = {
-        id: 'membership-456',
-        groupId: 'group-123',
-        userId: 'user-456',
+        id: '247ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        userId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
         role: 'member',
       };
 
       const createdCommitment = {
-        id: 'commitment-123',
-        groupId: 'group-123',
-        creatorId: 'user-123',
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'active',
         conditionType: 'single_user',
         naturalLanguageText: newCommitment.naturalLanguageText,
@@ -92,12 +92,12 @@ describe('Commitment Routes', () => {
         updatedAt: new Date(),
         revokedAt: null,
         creator: {
-          id: 'user-123',
+          id: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
           username: 'testuser',
           email: 'test@example.com',
         },
         group: {
-          id: 'group-123',
+          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
           name: 'Test Group',
         },
       };
@@ -118,7 +118,7 @@ describe('Commitment Routes', () => {
 
     it('should create a new commitment with aggregate condition', async () => {
       const newCommitment = {
-        groupId: 'group-123',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         parsedCommitment: {
           condition: {
             type: 'aggregate',
@@ -135,17 +135,17 @@ describe('Commitment Routes', () => {
       };
 
       const groupMembership = {
-        id: 'membership-123',
-        groupId: 'group-123',
-        userId: 'user-123',
+        id: '147ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        userId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         role: 'member',
-        group: { id: 'group-123', name: 'Test Group' },
+        group: { id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', name: 'Test Group' },
       };
 
       const createdCommitment = {
-        id: 'commitment-123',
-        groupId: 'group-123',
-        creatorId: 'user-123',
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'active',
         conditionType: 'aggregate',
         naturalLanguageText: null,
@@ -154,12 +154,12 @@ describe('Commitment Routes', () => {
         updatedAt: new Date(),
         revokedAt: null,
         creator: {
-          id: 'user-123',
+          id: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
           username: 'testuser',
           email: 'test@example.com',
         },
         group: {
-          id: 'group-123',
+          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
           name: 'Test Group',
         },
       };
@@ -179,7 +179,7 @@ describe('Commitment Routes', () => {
 
     it('should reject commitment if user is not a group member', async () => {
       const newCommitment = {
-        groupId: 'group-123',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         parsedCommitment: {
           condition: {
             type: 'aggregate',
@@ -208,11 +208,11 @@ describe('Commitment Routes', () => {
 
     it('should reject commitment if target user is not a group member', async () => {
       const newCommitment = {
-        groupId: 'group-123',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         parsedCommitment: {
           condition: {
             type: 'single_user',
-            targetUserId: 'user-999',
+            targetUserId: 'c47ac10b-58cc-4372-a567-0e02b2c3d479',
             action: 'work',
             minAmount: 5,
             unit: 'hours',
@@ -226,11 +226,11 @@ describe('Commitment Routes', () => {
       };
 
       const groupMembership = {
-        id: 'membership-123',
-        groupId: 'group-123',
-        userId: 'user-123',
+        id: '147ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        userId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         role: 'member',
-        group: { id: 'group-123', name: 'Test Group' },
+        group: { id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', name: 'Test Group' },
       };
 
       prisma.groupMembership.findUnique.mockResolvedValueOnce(groupMembership);
@@ -276,27 +276,27 @@ describe('Commitment Routes', () => {
   describe('GET /api/commitments', () => {
     it('should list commitments for user groups', async () => {
       const userGroups = [
-        { groupId: 'group-123' },
+        { groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
         { groupId: 'group-456' },
       ];
 
       const commitments = [
         {
-          id: 'commitment-123',
-          groupId: 'group-123',
-          creatorId: 'user-123',
+          id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+          groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
           status: 'active',
           conditionType: 'single_user',
           parsedCommitment: {},
           createdAt: new Date(),
           updatedAt: new Date(),
           creator: {
-            id: 'user-123',
+            id: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
             username: 'testuser',
             email: 'test@example.com',
           },
           group: {
-            id: 'group-123',
+            id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
             name: 'Test Group',
           },
         },
@@ -319,28 +319,28 @@ describe('Commitment Routes', () => {
 
     it('should filter commitments by groupId', async () => {
       const groupMembership = {
-        id: 'membership-123',
-        groupId: 'group-123',
-        userId: 'user-123',
+        id: '147ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        userId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
       };
 
       const commitments = [
         {
-          id: 'commitment-123',
-          groupId: 'group-123',
-          creatorId: 'user-456',
+          id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+          groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          creatorId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
           status: 'active',
           conditionType: 'aggregate',
           parsedCommitment: {},
           createdAt: new Date(),
           updatedAt: new Date(),
           creator: {
-            id: 'user-456',
+            id: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
             username: 'otheruser',
             email: 'other@example.com',
           },
           group: {
-            id: 'group-123',
+            id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
             name: 'Test Group',
           },
         },
@@ -351,15 +351,15 @@ describe('Commitment Routes', () => {
       prisma.commitment.findMany.mockResolvedValue(commitments);
 
       const response = await request(app)
-        .get('/api/commitments?groupId=group-123')
+        .get('/api/commitments?groupId=f47ac10b-58cc-4372-a567-0e02b2c3d479')
         .expect(200);
 
       expect(response.body.commitments).toHaveLength(1);
-      expect(response.body.commitments[0].groupId).toBe('group-123');
+      expect(response.body.commitments[0].groupId).toBe('f47ac10b-58cc-4372-a567-0e02b2c3d479');
     });
 
     it('should filter commitments by status', async () => {
-      const userGroups = [{ groupId: 'group-123' }];
+      const userGroups = [{ groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' }];
 
       prisma.groupMembership.findMany.mockResolvedValue(userGroups);
       prisma.commitment.count.mockResolvedValue(0);
@@ -376,7 +376,7 @@ describe('Commitment Routes', () => {
       prisma.groupMembership.findUnique.mockResolvedValue(null);
 
       const response = await request(app)
-        .get('/api/commitments?groupId=group-999')
+        .get('/api/commitments?groupId=c47ac10b-58cc-4372-a567-0e02b2c3d479')
         .expect(403);
 
       expect(response.body).toHaveProperty('error');
@@ -387,29 +387,29 @@ describe('Commitment Routes', () => {
   describe('GET /api/commitments/:id', () => {
     it('should get a specific commitment', async () => {
       const commitment = {
-        id: 'commitment-123',
-        groupId: 'group-123',
-        creatorId: 'user-123',
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'active',
         conditionType: 'single_user',
         parsedCommitment: {},
         createdAt: new Date(),
         updatedAt: new Date(),
         creator: {
-          id: 'user-123',
+          id: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
           username: 'testuser',
           email: 'test@example.com',
         },
         group: {
-          id: 'group-123',
+          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
           name: 'Test Group',
         },
       };
 
       const groupMembership = {
-        id: 'membership-123',
-        groupId: 'group-123',
-        userId: 'user-123',
+        id: '147ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        userId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
       };
 
       prisma.commitment.findUnique.mockResolvedValue(commitment);
@@ -419,7 +419,7 @@ describe('Commitment Routes', () => {
         .get('/api/commitments/commitment-123')
         .expect(200);
 
-      expect(response.body).toHaveProperty('id', 'commitment-123');
+      expect(response.body).toHaveProperty('id', 'd47ac10b-58cc-4372-a567-0e02b2c3d479');
     });
 
     it('should return 404 for non-existent commitment', async () => {
@@ -435,9 +435,9 @@ describe('Commitment Routes', () => {
 
     it('should reject if user is not a group member', async () => {
       const commitment = {
-        id: 'commitment-123',
-        groupId: 'group-123',
-        creatorId: 'user-456',
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'active',
       };
 
@@ -456,9 +456,9 @@ describe('Commitment Routes', () => {
   describe('PUT /api/commitments/:id', () => {
     it('should update a commitment', async () => {
       const commitment = {
-        id: 'commitment-123',
-        groupId: 'group-123',
-        creatorId: 'user-123',
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'active',
         conditionType: 'single_user',
       };
@@ -467,7 +467,7 @@ describe('Commitment Routes', () => {
         parsedCommitment: {
           condition: {
             type: 'single_user',
-            targetUserId: 'user-456',
+            targetUserId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
             action: 'work',
             minAmount: 10,
             unit: 'hours',
@@ -481,9 +481,9 @@ describe('Commitment Routes', () => {
       };
 
       const targetMembership = {
-        id: 'membership-456',
-        groupId: 'group-123',
-        userId: 'user-456',
+        id: '247ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        userId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
       };
 
       const updatedCommitment = {
@@ -491,12 +491,12 @@ describe('Commitment Routes', () => {
         ...updateData,
         updatedAt: new Date(),
         creator: {
-          id: 'user-123',
+          id: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
           username: 'testuser',
           email: 'test@example.com',
         },
         group: {
-          id: 'group-123',
+          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
           name: 'Test Group',
         },
       };
@@ -510,14 +510,14 @@ describe('Commitment Routes', () => {
         .send(updateData)
         .expect(200);
 
-      expect(response.body).toHaveProperty('id', 'commitment-123');
+      expect(response.body).toHaveProperty('id', 'd47ac10b-58cc-4372-a567-0e02b2c3d479');
     });
 
     it('should reject update if user is not the creator', async () => {
       const commitment = {
-        id: 'commitment-123',
-        groupId: 'group-123',
-        creatorId: 'user-456',
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'active',
       };
 
@@ -534,9 +534,9 @@ describe('Commitment Routes', () => {
 
     it('should reject update of revoked commitment', async () => {
       const commitment = {
-        id: 'commitment-123',
-        groupId: 'group-123',
-        creatorId: 'user-123',
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'revoked',
       };
 
@@ -555,9 +555,9 @@ describe('Commitment Routes', () => {
   describe('DELETE /api/commitments/:id', () => {
     it('should revoke a commitment', async () => {
       const commitment = {
-        id: 'commitment-123',
-        groupId: 'group-123',
-        creatorId: 'user-123',
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'active',
       };
 
@@ -566,12 +566,12 @@ describe('Commitment Routes', () => {
         status: 'revoked',
         revokedAt: new Date(),
         creator: {
-          id: 'user-123',
+          id: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
           username: 'testuser',
           email: 'test@example.com',
         },
         group: {
-          id: 'group-123',
+          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
           name: 'Test Group',
         },
       };
@@ -589,9 +589,9 @@ describe('Commitment Routes', () => {
 
     it('should reject revoke if user is not the creator', async () => {
       const commitment = {
-        id: 'commitment-123',
-        groupId: 'group-123',
-        creatorId: 'user-456',
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'active',
       };
 
@@ -607,9 +607,9 @@ describe('Commitment Routes', () => {
 
     it('should reject revoke of already revoked commitment', async () => {
       const commitment = {
-        id: 'commitment-123',
-        groupId: 'group-123',
-        creatorId: 'user-123',
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'revoked',
       };
 

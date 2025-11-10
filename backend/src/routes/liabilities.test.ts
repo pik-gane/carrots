@@ -5,10 +5,12 @@ import liabilityRoutes from './liabilities';
 
 // Mock SimpleLiabilityCalculator
 jest.mock('../services/simpleLiabilityCalculator', () => {
+  const mockCalculateGroupLiabilities = jest.fn();
   return {
     SimpleLiabilityCalculator: jest.fn().mockImplementation(() => ({
-      calculateGroupLiabilities: jest.fn(),
+      calculateGroupLiabilities: mockCalculateGroupLiabilities,
     })),
+    __mockCalculateGroupLiabilities: mockCalculateGroupLiabilities,
   };
 });
 
@@ -41,7 +43,7 @@ jest.mock('../middleware/authenticate', () => ({
 describe('Liability Routes', () => {
   let app: Application;
   let prisma: any;
-  let mockCalculator: any;
+  let mockCalculateGroupLiabilities: jest.Mock;
 
   beforeEach(() => {
     app = express();
@@ -49,8 +51,8 @@ describe('Liability Routes', () => {
     app.use('/api', liabilityRoutes);
 
     prisma = new PrismaClient();
-    const { SimpleLiabilityCalculator } = require('../services/simpleLiabilityCalculator');
-    mockCalculator = new SimpleLiabilityCalculator();
+    const simpleLiabilityCalculatorModule = require('../services/simpleLiabilityCalculator');
+    mockCalculateGroupLiabilities = simpleLiabilityCalculatorModule.__mockCalculateGroupLiabilities;
     jest.clearAllMocks();
   });
 
@@ -87,7 +89,7 @@ describe('Liability Routes', () => {
       ];
 
       prisma.groupMembership.findUnique.mockResolvedValue(groupMembership);
-      mockCalculator.calculateGroupLiabilities.mockResolvedValue(calculatedLiabilities);
+      mockCalculateGroupLiabilities.mockResolvedValue(calculatedLiabilities);
       prisma.liability.deleteMany.mockResolvedValue({ count: 0 });
       prisma.liability.createMany.mockResolvedValue({ count: 2 });
 
@@ -105,7 +107,7 @@ describe('Liability Routes', () => {
         amount: 5,
         unit: 'hours',
       });
-      expect(mockCalculator.calculateGroupLiabilities).toHaveBeenCalledWith('group-123');
+      expect(mockCalculateGroupLiabilities).toHaveBeenCalledWith('group-123');
     });
 
     it('should return empty liabilities for group with no commitments', async () => {
@@ -120,7 +122,7 @@ describe('Liability Routes', () => {
       };
 
       prisma.groupMembership.findUnique.mockResolvedValue(groupMembership);
-      mockCalculator.calculateGroupLiabilities.mockResolvedValue([]);
+      mockCalculateGroupLiabilities.mockResolvedValue([]);
       prisma.liability.deleteMany.mockResolvedValue({ count: 0 });
 
       const response = await request(app)
@@ -153,7 +155,7 @@ describe('Liability Routes', () => {
       };
 
       prisma.groupMembership.findUnique.mockResolvedValue(groupMembership);
-      mockCalculator.calculateGroupLiabilities.mockRejectedValue(
+      mockCalculateGroupLiabilities.mockRejectedValue(
         new Error('Liability calculation did not converge')
       );
 
@@ -255,6 +257,11 @@ describe('Liability Routes', () => {
     });
 
     it('should reject if user is not member of specified group', async () => {
+      // Mock that they share groups (so we get past the first check)
+      const sharedGroups = [{ groupId: 'group-123' }];
+      prisma.groupMembership.findMany.mockResolvedValue(sharedGroups);
+      
+      // Mock that the requesting user is NOT a member of the specified group
       prisma.groupMembership.findUnique.mockResolvedValue(null);
 
       const response = await request(app)
