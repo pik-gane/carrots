@@ -66,22 +66,25 @@
 ## Phase 3: Group Management (Week 3)
 
 ### 3.1 Backend Group Logic
-- [ ] Create Group and GroupMembership models
-- [ ] Implement group creation endpoint
-- [ ] Implement group listing endpoint
-- [ ] Implement join/leave group endpoints
-- [ ] Add authorization checks (group ownership)
-- [ ] Create group member listing endpoint
-- [ ] Write tests for group operations
+- [x] Create Group and GroupMembership models (already existed in Prisma schema)
+- [x] Implement group creation endpoint (POST /api/groups)
+- [x] Implement group listing endpoint (GET /api/groups)
+- [x] Implement group detail endpoint (GET /api/groups/:id)
+- [x] Implement group update endpoint (PUT /api/groups/:id)
+- [x] Implement group delete endpoint (DELETE /api/groups/:id)
+- [x] Implement join/leave group endpoints (POST /api/groups/:id/join, POST /api/groups/:id/leave)
+- [x] Add authorization checks (group ownership for updates/deletion)
+- [x] Create group member listing endpoint (GET /api/groups/:id/members)
+- [x] Write comprehensive tests for group operations (24 tests, all passing)
 
 ### 3.2 Frontend Group UI
-- [ ] Create dashboard page
-- [ ] Create group creation form
-- [ ] Create group list component
-- [ ] Create group detail page
-- [ ] Implement join/leave group UI
-- [ ] Create member list component
-- [ ] Add group navigation
+- [x] Create GroupsPage with group list
+- [x] Create group creation form (CreateGroupDialog component)
+- [x] Create group list component (GroupCard component)
+- [x] Create group detail page with full CRUD operations
+- [x] Implement join/leave group UI
+- [x] Create member list component (in GroupDetailPage)
+- [x] Add group navigation to all pages
 
 ## Phase 4: Core Commitment Engine (Week 4-5)
 
