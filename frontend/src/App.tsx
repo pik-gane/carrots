@@ -2,13 +2,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider } from './hooks/useAuth';
-
-// Import pages (to be created)
-// import LandingPage from './pages/LandingPage';
-// import LoginPage from './pages/LoginPage';
-// import RegisterPage from './pages/RegisterPage';
-// import DashboardPage from './pages/DashboardPage';
-// import GroupPage from './pages/GroupPage';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import DashboardPage from './pages/DashboardPage';
 
 const theme = createTheme({
   palette: {
@@ -32,10 +29,17 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            <Route path="/" element={<div>Landing Page - Coming Soon</div>} />
-            <Route path="/login" element={<div>Login Page - Coming Soon</div>} />
-            <Route path="/register" element={<div>Register Page - Coming Soon</div>} />
-            <Route path="/dashboard" element={<div>Dashboard - Coming Soon</div>} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/groups/:id" element={<div>Group Page - Coming Soon</div>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
