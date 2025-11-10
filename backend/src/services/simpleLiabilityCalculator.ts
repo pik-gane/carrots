@@ -1,0 +1,309 @@
+import { PrismaClient } from '@prisma/client';
+import { logger } from '../utils/logger';
+
+const prisma = new PrismaClient();
+
+interface SimpleCondition {
+  type: 'single_user' | 'aggregate';
+  targetUserId?: string;
+  action: string;
+  minAmount: number;
+  unit: string;
+}
+
+interface SimplePromise {
+  action: string;
+  minAmount: number;
+  unit: string;
+}
+
+interface SimpleParsedCommitment {
+  condition: SimpleCondition;
+  promise: SimplePromise;
+}
+
+interface SimpleCommitment {
+  id: string;
+  creatorId: string;
+  parsedCommitment: SimpleParsedCommitment;
+}
+
+interface LiabilityMap {
+  [userId: string]: {
+    [action: string]: {
+      amount: number;
+      unit: string;
+      effectiveCommitmentIds: string[];
+    };
+  };
+}
+
+interface CalculatedLiability {
+  userId: string;
+  username?: string;
+  action: string;
+  amount: number;
+  unit: string;
+  effectiveCommitmentIds: string[];
+}
+
+/**
+ * SimpleLiabilityCalculator - Calculate liabilities using single condition/promise model
+ * 
+ * Implements fixed-point algorithm:
+ * L_i(a) = max { promise.minAmount | commitment.creatorId === i, condition is satisfied }
+ */
+export class SimpleLiabilityCalculator {
+  private static readonly MAX_ITERATIONS = 100;
+  private static readonly CONVERGENCE_THRESHOLD = 0.001;
+
+  /**
+   * Calculate liabilities for all users in a group
+   */
+  async calculateGroupLiabilities(groupId: string): Promise<CalculatedLiability[]> {
+    logger.info(`Calculating liabilities for group ${groupId}`);
+
+    // Get all active commitments for the group
+    const commitments = await this.getActiveCommitments(groupId);
+    logger.debug(`Found ${commitments.length} active commitments`);
+
+    if (commitments.length === 0) {
+      return [];
+    }
+
+    // Get all group members with usernames
+    const members = await this.getGroupMembers(groupId);
+    const userIds = members.map((m) => m.userId);
+    const userMap = new Map(members.map((m) => [m.userId, m.user.username]));
+
+    // Extract all unique action-unit pairs
+    const actionUnits = this.extractUniqueActionUnits(commitments);
+
+    // Initialize liabilities to zero
+    let liabilities = this.initializeLiabilities(userIds, actionUnits);
+
+    // Fixed-point iteration
+    let previousLiabilities: LiabilityMap | null = null;
+    let iterations = 0;
+
+    while (
+      !this.hasConverged(liabilities, previousLiabilities) &&
+      iterations < SimpleLiabilityCalculator.MAX_ITERATIONS
+    ) {
+      previousLiabilities = this.deepCopyLiabilities(liabilities);
+
+      for (const commitment of commitments) {
+        const conditionMet = this.evaluateCondition(
+          commitment.parsedCommitment.condition,
+          liabilities,
+          commitment.creatorId
+        );
+
+        if (conditionMet) {
+          const userId = commitment.creatorId;
+          const action = commitment.parsedCommitment.promise.action;
+          const amount = commitment.parsedCommitment.promise.minAmount;
+          const unit = commitment.parsedCommitment.promise.unit;
+
+          // Initialize user-action if not exists
+          if (!liabilities[userId]) {
+            liabilities[userId] = {};
+          }
+          if (!liabilities[userId][action]) {
+            liabilities[userId][action] = {
+              amount: 0,
+              unit,
+              effectiveCommitmentIds: [],
+            };
+          }
+
+          // Update to max committed value
+          if (amount > liabilities[userId][action].amount) {
+            liabilities[userId][action].amount = amount;
+            liabilities[userId][action].unit = unit;
+            liabilities[userId][action].effectiveCommitmentIds = [commitment.id];
+          } else if (amount === liabilities[userId][action].amount && amount > 0) {
+            if (!liabilities[userId][action].effectiveCommitmentIds.includes(commitment.id)) {
+              liabilities[userId][action].effectiveCommitmentIds.push(commitment.id);
+            }
+          }
+        }
+      }
+
+      iterations++;
+    }
+
+    if (iterations >= SimpleLiabilityCalculator.MAX_ITERATIONS) {
+      logger.warn(`Liability calculation did not converge after ${iterations} iterations`);
+      throw new Error('Liability calculation did not converge');
+    }
+
+    logger.info(`Liability calculation converged after ${iterations} iterations`);
+
+    // Convert to array format with usernames
+    return this.liabilityMapToArray(liabilities, userMap);
+  }
+
+  /**
+   * Evaluate if a commitment's condition is satisfied
+   */
+  private evaluateCondition(
+    condition: SimpleCondition,
+    currentLiabilities: LiabilityMap,
+    creatorId: string
+  ): boolean {
+    if (condition.type === 'single_user') {
+      const userId = condition.targetUserId!;
+      const action = condition.action;
+      const userLiability = currentLiabilities[userId]?.[action]?.amount || 0;
+      return userLiability >= condition.minAmount;
+    } else if (condition.type === 'aggregate') {
+      const action = condition.action;
+      // Sum all users' liabilities for this action, excluding the creator
+      let totalLiability = 0;
+      for (const userId of Object.keys(currentLiabilities)) {
+        if (userId !== creatorId) {
+          totalLiability += currentLiabilities[userId]?.[action]?.amount || 0;
+        }
+      }
+      return totalLiability >= condition.minAmount;
+    }
+    return false;
+  }
+
+  /**
+   * Get active commitments for a group
+   */
+  private async getActiveCommitments(groupId: string): Promise<SimpleCommitment[]> {
+    const commitments = await prisma.commitment.findMany({
+      where: {
+        groupId,
+        status: 'active',
+      },
+    });
+
+    return commitments.map((c) => ({
+      id: c.id,
+      creatorId: c.creatorId,
+      parsedCommitment: c.parsedCommitment as unknown as SimpleParsedCommitment,
+    }));
+  }
+
+  /**
+   * Get group members with usernames
+   */
+  private async getGroupMembers(groupId: string) {
+    return prisma.groupMembership.findMany({
+      where: { groupId },
+      include: {
+        user: {
+          select: {
+            username: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Extract all unique action-unit pairs from commitments
+   */
+  private extractUniqueActionUnits(commitments: SimpleCommitment[]): Map<string, string> {
+    const actionUnits = new Map<string, string>();
+
+    for (const commitment of commitments) {
+      const { condition, promise } = commitment.parsedCommitment;
+      actionUnits.set(condition.action, condition.unit);
+      actionUnits.set(promise.action, promise.unit);
+    }
+
+    return actionUnits;
+  }
+
+  /**
+   * Initialize liabilities to zero for all users and actions
+   */
+  private initializeLiabilities(userIds: string[], actionUnits: Map<string, string>): LiabilityMap {
+    const liabilities: LiabilityMap = {};
+
+    for (const userId of userIds) {
+      liabilities[userId] = {};
+      for (const [action, unit] of actionUnits.entries()) {
+        liabilities[userId][action] = {
+          amount: 0,
+          unit,
+          effectiveCommitmentIds: [],
+        };
+      }
+    }
+
+    return liabilities;
+  }
+
+  /**
+   * Check if liabilities have converged
+   */
+  private hasConverged(current: LiabilityMap, previous: LiabilityMap | null): boolean {
+    if (!previous) {
+      return false;
+    }
+
+    for (const userId of Object.keys(current)) {
+      for (const action of Object.keys(current[userId])) {
+        const currentAmount = current[userId][action]?.amount || 0;
+        const previousAmount = previous[userId]?.[action]?.amount || 0;
+        if (Math.abs(currentAmount - previousAmount) > SimpleLiabilityCalculator.CONVERGENCE_THRESHOLD) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Deep copy liabilities map
+   */
+  private deepCopyLiabilities(liabilities: LiabilityMap): LiabilityMap {
+    const copy: LiabilityMap = {};
+    for (const userId of Object.keys(liabilities)) {
+      copy[userId] = {};
+      for (const action of Object.keys(liabilities[userId])) {
+        copy[userId][action] = {
+          amount: liabilities[userId][action].amount,
+          unit: liabilities[userId][action].unit,
+          effectiveCommitmentIds: [...liabilities[userId][action].effectiveCommitmentIds],
+        };
+      }
+    }
+    return copy;
+  }
+
+  /**
+   * Convert liability map to array format
+   */
+  private liabilityMapToArray(
+    liabilities: LiabilityMap,
+    userMap: Map<string, string>
+  ): CalculatedLiability[] {
+    const result: CalculatedLiability[] = [];
+
+    for (const userId of Object.keys(liabilities)) {
+      for (const action of Object.keys(liabilities[userId])) {
+        const liability = liabilities[userId][action];
+        if (liability.amount > 0) {
+          result.push({
+            userId,
+            username: userMap.get(userId),
+            action,
+            amount: liability.amount,
+            unit: liability.unit,
+            effectiveCommitmentIds: liability.effectiveCommitmentIds,
+          });
+        }
+      }
+    }
+
+    return result;
+  }
+}

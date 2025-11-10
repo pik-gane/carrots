@@ -8,8 +8,8 @@ import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import groupRoutes from './routes/groups';
-// import commitmentRoutes from './routes/commitments';
-// import liabilityRoutes from './routes/liabilities';
+import commitmentRoutes from './routes/commitments';
+import liabilityRoutes from './routes/liabilities';
 
 // Load environment variables
 dotenv.config();
@@ -55,8 +55,8 @@ app.get('/api', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/groups', groupRoutes);
-// app.use('/api/commitments', commitmentRoutes);
-// app.use('/api/liabilities', liabilityRoutes);
+app.use('/api/commitments', commitmentRoutes);
+app.use('/api', liabilityRoutes);
 
 // 404 handler
 app.use((_req, res) => {
