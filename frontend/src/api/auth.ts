@@ -15,7 +15,7 @@ export interface RegisterRequest {
 export interface AuthResponse {
   message: string;
   user: User;
-  token: string;
+  accessToken: string;
   refreshToken: string;
 }
 
@@ -44,7 +44,7 @@ export const authApi = {
   },
 
   // Refresh token
-  refresh: async (refreshToken: string): Promise<{ token: string; refreshToken: string }> => {
+  refresh: async (refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> => {
     const response = await apiClient.post('/api/auth/refresh', { refreshToken });
     return response.data;
   },
