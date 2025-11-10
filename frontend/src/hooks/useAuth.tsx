@@ -1,16 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-}
+import { authApi } from '../api/auth';
+import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -21,36 +17,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in (e.g., from localStorage)
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Verify token and fetch user data
-      // This will be implemented with actual API calls
+    // Check if user is already logged in
+    const initAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          // Verify token and fetch user data
+          const userData = await authApi.me();
+          setUser(userData);
+        } catch (error) {
+          // Token is invalid, clear it
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+        }
+      }
       setIsLoading(false);
-    } else {
-      setIsLoading(false);
-    }
+    };
+
+    initAuth();
   }, []);
 
-  const login = async (email: string, _password: string) => {
-    // TODO: Implement actual login API call
-    console.log('Login called:', email);
-    // const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/login`, {
-    //   email,
-    //   password,
-    // });
-    // setUser(response.data.user);
-    // localStorage.setItem('token', response.data.token);
+  const login = async (email: string, password: string) => {
+    const response = await authApi.login({ email, password });
+    setUser(response.user);
+    localStorage.setItem('token', response.accessToken);
+    localStorage.setItem('refreshToken', response.refreshToken);
   };
 
-  const register = async (username: string, email: string, _password: string) => {
-    // TODO: Implement actual register API call
-    console.log('Register called:', username, email);
+  const register = async (username: string, email: string, password: string) => {
+    const response = await authApi.register({ username, email, password });
+    setUser(response.user);
+    localStorage.setItem('token', response.accessToken);
+    localStorage.setItem('refreshToken', response.refreshToken);
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('token');
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      // Ignore logout errors
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+    }
   };
 
   return (
