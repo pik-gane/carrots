@@ -8,6 +8,8 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import UserProfilePage from './pages/UserProfilePage';
 import UserSettingsPage from './pages/UserSettingsPage';
+import GroupsPage from './pages/GroupsPage';
+import GroupDetailPage from './pages/GroupDetailPage';
 
 const theme = createTheme({
   palette: {
@@ -58,7 +60,22 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="/groups/:id" element={<div>Group Page - Coming Soon</div>} />
+            <Route
+              path="/groups"
+              element={
+                <ProtectedRoute>
+                  <GroupsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/groups/:id"
+              element={
+                <ProtectedRoute>
+                  <GroupDetailPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Router>

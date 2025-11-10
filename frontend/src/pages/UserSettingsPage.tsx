@@ -104,6 +104,9 @@ export default function UserSettingsPage() {
           <Button color="inherit" onClick={handleBackToProfile} sx={{ mr: 2 }}>
             Profile
           </Button>
+          <Button color="inherit" onClick={() => navigate('/groups')} sx={{ mr: 2 }}>
+            Groups
+          </Button>
           <Button color="inherit" onClick={handleLogout}>
             Logout
           </Button>
