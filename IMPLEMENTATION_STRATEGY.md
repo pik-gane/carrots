@@ -47,12 +47,21 @@
 - [ ] Write tests for user operations
 
 ### 2.3 Frontend Auth
-- [ ] Create login page
-- [ ] Create registration page
-- [ ] Implement auth context/state management
-- [ ] Create protected route component
-- [ ] Add token storage and refresh logic
-- [ ] Create logout functionality
+- [x] Create login page
+- [x] Create registration page
+- [x] Implement auth context/state management
+- [x] Create protected route component
+- [x] Add token storage and refresh logic
+- [x] Create logout functionality
+
+### 2.4 Frontend User Profile
+- [x] Create user profile page to display user information
+- [x] Create user settings page for editing profile
+- [x] Add user API service methods in frontend
+- [x] Add routes for profile and settings pages
+- [x] Update navigation to include profile/settings links
+- [x] Implement profile update functionality with validation
+- [x] Add delete account functionality with confirmation dialog
 
 ## Phase 3: Group Management (Week 3)
 

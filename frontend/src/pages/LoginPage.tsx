@@ -73,9 +73,9 @@ export default function LoginPage() {
               required
               fullWidth
               id="email"
-              label="Email Address"
+              label="Email or Username"
               name="email"
-              autoComplete="email"
+              autoComplete="email username"
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
