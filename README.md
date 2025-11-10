@@ -259,10 +259,10 @@ See [IMPLEMENTATION_STRATEGY.md](./IMPLEMENTATION_STRATEGY.md) for detailed deve
 ### MVP (Version 1.0)
 - [x] Project structure and documentation
 - [x] User authentication (backend API complete - see [TESTING_AUTH_API.md](./TESTING_AUTH_API.md))
+- [x] User profile and settings frontend (Phase 2.4 complete)
 - [ ] Group management
 - [ ] Structured commitment creation
 - [ ] Liability calculation engine
-- [ ] Basic UI (frontend pages coming in Phase 2.3)
 
 ### Future Enhancements
 - [ ] Natural language commitment parsing
