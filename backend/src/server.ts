@@ -4,8 +4,8 @@ import dotenv from 'dotenv';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 
-// Import routes (to be created)
-// import authRoutes from './routes/auth';
+// Import routes
+import authRoutes from './routes/auth';
 // import userRoutes from './routes/users';
 // import groupRoutes from './routes/groups';
 // import commitmentRoutes from './routes/commitments';
@@ -51,8 +51,8 @@ app.get('/api', (_req, res) => {
   });
 });
 
-// Mount routes (uncomment as they are created)
-// app.use('/api/auth', authRoutes);
+// Mount routes
+app.use('/api/auth', authRoutes);
 // app.use('/api/users', userRoutes);
 // app.use('/api/groups', groupRoutes);
 // app.use('/api/commitments', commitmentRoutes);

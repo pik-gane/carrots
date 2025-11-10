@@ -42,6 +42,7 @@ export class LiabilityCalculator {
     const actions = this.extractUniqueActions(commitments);
 
     // Initialize liabilities to maximum values (largest fixed point approach)
+    // eslint-disable-next-line prefer-const
     let liabilities = this.initializeLiabilitiesToMax(commitments, userIds, actions);
 
     // Fixed-point iteration: iteratively reduce to find largest fixed point
@@ -229,7 +230,9 @@ export class LiabilityCalculator {
 
   /**
    * Initialize liabilities to zero for all users and actions
+   * Note: Currently unused but kept for potential future use (e.g., smallest fixed point algorithm)
    */
+  // @ts-expect-error - Method intentionally kept for potential future use
   private initializeLiabilities(userIds: string[], actions: string[]): LiabilityMap {
     const liabilities: LiabilityMap = {};
 
