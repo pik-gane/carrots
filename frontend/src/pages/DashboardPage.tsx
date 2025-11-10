@@ -26,6 +26,9 @@ export default function DashboardPage() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             🥕 Carrots - Dashboard
           </Typography>
+          <Button color="inherit" onClick={() => navigate('/profile')} sx={{ mr: 2 }}>
+            Profile
+          </Button>
           <Button color="inherit" onClick={handleLogout}>
             Logout
           </Button>
