@@ -260,7 +260,7 @@ See [IMPLEMENTATION_STRATEGY.md](./IMPLEMENTATION_STRATEGY.md) for detailed deve
 - [x] Project structure and documentation
 - [x] User authentication (backend API complete - see [TESTING_AUTH_API.md](./TESTING_AUTH_API.md))
 - [x] User profile and settings frontend (Phase 2.4 complete)
-- [ ] Group management
+- [x] Group management (Phase 3 complete - full CRUD with member management)
 - [ ] Structured commitment creation
 - [ ] Liability calculation engine
 

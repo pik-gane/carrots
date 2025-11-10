@@ -26,6 +26,9 @@ export default function DashboardPage() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             🥕 Carrots - Dashboard
           </Typography>
+          <Button color="inherit" onClick={() => navigate('/groups')} sx={{ mr: 2 }}>
+            Groups
+          </Button>
           <Button color="inherit" onClick={() => navigate('/profile')} sx={{ mr: 2 }}>
             Profile
           </Button>
@@ -49,9 +52,16 @@ export default function DashboardPage() {
             </Typography>
           </Box>
           <Box sx={{ mt: 4 }}>
-            <Typography variant="body2" color="text.secondary">
-              This is your dashboard. Group management and commitment features are coming soon!
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Get started by visiting your groups page to create or join groups!
             </Typography>
+            <Button 
+              variant="contained" 
+              onClick={() => navigate('/groups')} 
+              sx={{ mt: 2 }}
+            >
+              Go to Groups
+            </Button>
           </Box>
         </Paper>
       </Container>

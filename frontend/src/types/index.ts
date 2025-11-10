@@ -15,6 +15,17 @@ export interface Group {
   createdAt: string;
   updatedAt: string;
   memberCount?: number;
+  memberships?: Array<{
+    id: string;
+    userId: string;
+    role: string;
+    joinedAt: string;
+    user: {
+      id: string;
+      username: string;
+      email: string;
+    };
+  }>;
 }
 
 export interface GroupMember {
