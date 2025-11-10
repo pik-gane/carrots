@@ -115,11 +115,21 @@ router.post('/login', authRateLimiter, async (req: Request, res: Response): Prom
       return;
     }
 
-    const { email, password } = validationResult.data as LoginInput;
+    const { email: emailOrUsername, password } = validationResult.data as LoginInput;
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
+    // Find user by email or username
+    // First, check if the input looks like an email
+    const isEmail = emailOrUsername.includes('@');
+    
+    const user = await prisma.user.findFirst({
+      where: isEmail
+        ? { email: emailOrUsername.toLowerCase() }
+        : {
+            OR: [
+              { username: emailOrUsername },
+              { email: emailOrUsername.toLowerCase() },
+            ],
+          },
     });
 
     if (!user) {

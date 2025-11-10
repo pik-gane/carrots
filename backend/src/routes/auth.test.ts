@@ -131,12 +131,13 @@ describe('Auth Routes', () => {
         password: 'Password123',
       };
 
-      prisma.user.findUnique.mockResolvedValue({
+      prisma.user.findFirst.mockResolvedValue({
         id: 'user-123',
         username: 'testuser',
         email: credentials.email,
         passwordHash: 'hashed_Password123',
         createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       const response = await request(app)
@@ -156,7 +157,7 @@ describe('Auth Routes', () => {
         password: 'Password123',
       };
 
-      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.findFirst.mockResolvedValue(null);
 
       const response = await request(app)
         .post('/api/auth/login')
@@ -172,12 +173,13 @@ describe('Auth Routes', () => {
         password: 'WrongPassword',
       };
 
-      prisma.user.findUnique.mockResolvedValue({
+      prisma.user.findFirst.mockResolvedValue({
         id: 'user-123',
         username: 'testuser',
         email: credentials.email,
         passwordHash: 'hashed_Password123',
         createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       const response = await request(app)
@@ -186,6 +188,31 @@ describe('Auth Routes', () => {
         .expect(401);
 
       expect(response.body).toHaveProperty('error', 'Authentication failed');
+    });
+
+    it('should login user with username', async () => {
+      const credentials = {
+        email: 'testuser',
+        password: 'Password123',
+      };
+
+      prisma.user.findFirst.mockResolvedValue({
+        id: 'user-123',
+        username: 'testuser',
+        email: 'testuser@example.com',
+        passwordHash: 'hashed_Password123',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send(credentials)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('message', 'Login successful');
+      expect(response.body).toHaveProperty('user');
+      expect(response.body.user).toHaveProperty('username', 'testuser');
     });
   });
 

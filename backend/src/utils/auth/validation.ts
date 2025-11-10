@@ -23,12 +23,12 @@ export const registerSchema = z.object({
 
 /**
  * Schema for user login
+ * Accepts either email or username
  */
 export const loginSchema = z.object({
   email: z
     .string()
-    .email('Invalid email address')
-    .toLowerCase(),
+    .min(1, 'Email or username is required'),
   password: z
     .string()
     .min(1, 'Password is required'),
