@@ -80,7 +80,7 @@ export class SimpleLiabilityCalculator {
     const actionUnits = this.extractUniqueActionUnits(commitments);
 
     // Initialize liabilities to zero
-    let liabilities = this.initializeLiabilities(userIds, actionUnits);
+    const liabilities = this.initializeLiabilities(userIds, actionUnits);
 
     // Fixed-point iteration
     let previousLiabilities: LiabilityMap | null = null;
