@@ -8,16 +8,17 @@ import {
   Tooltip,
 } from '@mui/material';
 import { Edit, Delete, CheckCircle, Cancel } from '@mui/icons-material';
-import { Commitment } from '../types';
+import { Commitment, GroupMember } from '../types';
 
 interface CommitmentCardProps {
   commitment: Commitment;
   currentUserId: string;
+  groupMembers?: GroupMember[];
   onEdit?: (commitment: Commitment) => void;
   onRevoke?: (commitment: Commitment) => void;
 }
 
-export function CommitmentCard({ commitment, currentUserId, onEdit, onRevoke }: CommitmentCardProps) {
+export function CommitmentCard({ commitment, currentUserId, groupMembers, onEdit, onRevoke }: CommitmentCardProps) {
   const isCreator = commitment.creatorId === currentUserId;
   const isActive = commitment.status === 'active';
 
@@ -25,8 +26,19 @@ export function CommitmentCard({ commitment, currentUserId, onEdit, onRevoke }: 
     const { condition } = commitment.parsedCommitment;
     if (condition.type === 'unconditional') {
       return 'Unconditionally';
-    } else if (condition.type === 'single_user' && condition.targetUsername) {
-      return `If ${condition.targetUsername} does at least ${condition.minAmount} ${condition.unit} of ${condition.action}`;
+    } else if (condition.type === 'single_user') {
+      // Try to get username from condition, otherwise look it up from groupMembers
+      let targetUsername = condition.targetUsername;
+      if (!targetUsername && condition.targetUserId && groupMembers) {
+        const targetMember = groupMembers.find(m => m.userId === condition.targetUserId);
+        targetUsername = targetMember?.username;
+      }
+      
+      if (targetUsername) {
+        return `If ${targetUsername} does at least ${condition.minAmount} ${condition.unit} of ${condition.action}`;
+      }
+      // Fallback if we still can't find the username
+      return `If user does at least ${condition.minAmount} ${condition.unit} of ${condition.action}`;
     } else if (condition.type === 'aggregate') {
       return `If others do at least ${condition.minAmount} ${condition.unit} of ${condition.action} combined`;
     }

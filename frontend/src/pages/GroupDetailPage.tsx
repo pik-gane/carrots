@@ -390,6 +390,13 @@ export default function GroupDetailPage() {
                             key={commitment.id}
                             commitment={commitment}
                             currentUserId={user?.id || ''}
+                            groupMembers={group.memberships?.map(m => ({
+                              userId: m.user.id,
+                              username: m.user.username,
+                              email: m.user.email,
+                              role: m.role as 'creator' | 'member',
+                              joinedAt: m.joinedAt,
+                            }))}
                             onEdit={openEditDialog}
                             onRevoke={openRevokeDialog}
                           />
