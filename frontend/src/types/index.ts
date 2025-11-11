@@ -60,7 +60,6 @@ export interface Commitment {
   id: string;
   groupId: string;
   creatorId: string;
-  creatorUsername: string;
   status: 'active' | 'revoked';
   conditionType: 'single_user' | 'aggregate';
   naturalLanguageText: string | null;
@@ -68,6 +67,16 @@ export interface Commitment {
   createdAt: string;
   updatedAt: string;
   revokedAt: string | null;
+  creator: {
+    id: string;
+    username: string;
+    email: string;
+  };
+  group: {
+    id: string;
+    name: string;
+  };
+  warnings?: string[];
 }
 
 export interface Liability {
