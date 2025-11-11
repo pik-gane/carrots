@@ -57,6 +57,7 @@ export default function GroupDetailPage() {
   const [commitmentError, setCommitmentError] = useState<string | null>(null);
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
   const [commitmentToRevoke, setCommitmentToRevoke] = useState<Commitment | null>(null);
+  const [commitmentToEdit, setCommitmentToEdit] = useState<Commitment | null>(null);
   
   // Liabilities state
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
@@ -178,11 +179,21 @@ export default function GroupDetailPage() {
     setActionLoading(true);
     setCommitmentError(null);
     try {
-      await commitmentsApi.create({
-        groupId: id,
-        parsedCommitment,
-        naturalLanguageText,
-      });
+      if (commitmentToEdit) {
+        // Edit mode
+        await commitmentsApi.update(commitmentToEdit.id, {
+          parsedCommitment,
+          naturalLanguageText,
+        });
+        setCommitmentToEdit(null);
+      } else {
+        // Create mode
+        await commitmentsApi.create({
+          groupId: id,
+          parsedCommitment,
+          naturalLanguageText,
+        });
+      }
       setCreateCommitmentOpen(false);
       loadCommitments();
       // Refresh liabilities after creating a commitment
@@ -190,7 +201,7 @@ export default function GroupDetailPage() {
         loadLiabilities();
       }
     } catch (err: any) {
-      setCommitmentError(err.response?.data?.message || 'Failed to create commitment');
+      setCommitmentError(err.response?.data?.message || `Failed to ${commitmentToEdit ? 'update' : 'create'} commitment`);
     } finally {
       setActionLoading(false);
     }
@@ -218,6 +229,11 @@ export default function GroupDetailPage() {
   const openRevokeDialog = (commitment: Commitment) => {
     setCommitmentToRevoke(commitment);
     setRevokeDialogOpen(true);
+  };
+
+  const openEditDialog = (commitment: Commitment) => {
+    setCommitmentToEdit(commitment);
+    setCreateCommitmentOpen(true);
   };
 
   const isCreator = user?.id === group?.creatorId;
@@ -374,6 +390,7 @@ export default function GroupDetailPage() {
                             key={commitment.id}
                             commitment={commitment}
                             currentUserId={user?.id || ''}
+                            onEdit={openEditDialog}
                             onRevoke={openRevokeDialog}
                           />
                         ))}
@@ -481,6 +498,7 @@ export default function GroupDetailPage() {
           open={createCommitmentOpen}
           onClose={() => {
             setCreateCommitmentOpen(false);
+            setCommitmentToEdit(null);
             setCommitmentError(null);
           }}
           onSubmit={handleCreateCommitment}
@@ -493,6 +511,7 @@ export default function GroupDetailPage() {
           }))}
           loading={actionLoading}
           error={commitmentError}
+          initialCommitment={commitmentToEdit || undefined}
         />
       )}
 

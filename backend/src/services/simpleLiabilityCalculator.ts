@@ -4,11 +4,11 @@ import { logger } from '../utils/logger';
 const prisma = new PrismaClient();
 
 interface SimpleCondition {
-  type: 'single_user' | 'aggregate';
+  type: 'single_user' | 'aggregate' | 'unconditional';
   targetUserId?: string;
-  action: string;
-  minAmount: number;
-  unit: string;
+  action?: string;
+  minAmount?: number;
+  unit?: string;
 }
 
 interface SimplePromise {
@@ -154,11 +154,16 @@ export class SimpleLiabilityCalculator {
     currentLiabilities: LiabilityMap,
     creatorId: string
   ): boolean {
+    // Unconditional commitments are always satisfied
+    if (condition.type === 'unconditional') {
+      return true;
+    }
+    
     if (condition.type === 'single_user') {
       const userId = condition.targetUserId!;
       const actionUnitKey = `${condition.action}:${condition.unit}`;
       const userLiability = currentLiabilities[userId]?.[actionUnitKey]?.amount || 0;
-      return userLiability >= condition.minAmount;
+      return userLiability >= condition.minAmount!;
     } else if (condition.type === 'aggregate') {
       const actionUnitKey = `${condition.action}:${condition.unit}`;
       // Sum all users' liabilities for this action:unit combination, excluding the creator
@@ -168,7 +173,7 @@ export class SimpleLiabilityCalculator {
           totalLiability += currentLiabilities[userId]?.[actionUnitKey]?.amount || 0;
         }
       }
-      return totalLiability >= condition.minAmount;
+      return totalLiability >= condition.minAmount!;
     }
     return false;
   }

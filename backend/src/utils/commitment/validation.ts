@@ -2,27 +2,37 @@ import { z } from 'zod';
 
 // Schema for commitment condition
 export const conditionSchema = z.object({
-  type: z.enum(['single_user', 'aggregate'], {
-    errorMap: () => ({ message: 'Condition type must be either "single_user" or "aggregate"' }),
+  type: z.enum(['single_user', 'aggregate', 'unconditional'], {
+    errorMap: () => ({ message: 'Condition type must be "single_user", "aggregate", or "unconditional"' }),
   }),
   targetUserId: z.string().uuid('Target user ID must be a valid UUID').optional(),
-  action: z.string().min(1, 'Action is required').max(100, 'Action must be at most 100 characters'),
-  minAmount: z.number().positive('Minimum amount must be positive'),
-  unit: z.string().min(1, 'Unit is required').max(50, 'Unit must be at most 50 characters'),
+  action: z.string().min(1, 'Action is required').max(100, 'Action must be at most 100 characters').optional(),
+  minAmount: z.number().positive('Minimum amount must be positive').optional(),
+  unit: z.string().min(1, 'Unit is required').max(50, 'Unit must be at most 50 characters').optional(),
 }).refine(
   (data) => {
-    // If type is single_user, targetUserId must be provided
-    if (data.type === 'single_user' && !data.targetUserId) {
-      return false;
+    // If type is unconditional, no other fields should be provided
+    if (data.type === 'unconditional') {
+      return !data.targetUserId && !data.action && !data.minAmount && !data.unit;
     }
-    // If type is aggregate, targetUserId should not be provided
-    if (data.type === 'aggregate' && data.targetUserId) {
-      return false;
+    // If type is single_user or aggregate, all fields must be provided
+    if (data.type === 'single_user' || data.type === 'aggregate') {
+      if (!data.action || !data.minAmount || !data.unit) {
+        return false;
+      }
+      // If type is single_user, targetUserId must be provided
+      if (data.type === 'single_user' && !data.targetUserId) {
+        return false;
+      }
+      // If type is aggregate, targetUserId should not be provided
+      if (data.type === 'aggregate' && data.targetUserId) {
+        return false;
+      }
     }
     return true;
   },
   {
-    message: 'single_user condition requires targetUserId, aggregate condition should not have targetUserId',
+    message: 'Invalid condition: unconditional requires no fields, single_user requires targetUserId/action/minAmount/unit, aggregate requires action/minAmount/unit only',
   }
 );
 

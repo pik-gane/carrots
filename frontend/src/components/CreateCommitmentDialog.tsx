@@ -19,7 +19,7 @@ import {
   Divider,
   Typography,
 } from '@mui/material';
-import { ParsedCommitment, GroupMember } from '../types';
+import { ParsedCommitment, GroupMember, Commitment } from '../types';
 
 interface CreateCommitmentDialogProps {
   open: boolean;
@@ -28,6 +28,7 @@ interface CreateCommitmentDialogProps {
   members: GroupMember[];
   loading?: boolean;
   error?: string | null;
+  initialCommitment?: Commitment;  // For edit mode
 }
 
 export function CreateCommitmentDialog({
@@ -37,8 +38,10 @@ export function CreateCommitmentDialog({
   members,
   loading = false,
   error = null,
+  initialCommitment,
 }: CreateCommitmentDialogProps) {
-  const [conditionType, setConditionType] = useState<'single_user' | 'aggregate'>('single_user');
+  const isEditMode = !!initialCommitment;
+  const [conditionType, setConditionType] = useState<'single_user' | 'aggregate' | 'unconditional'>('single_user');
   const [targetUserId, setTargetUserId] = useState('');
   const [conditionAction, setConditionAction] = useState('');
   const [conditionAmount, setConditionAmount] = useState('');
@@ -51,38 +54,56 @@ export function CreateCommitmentDialog({
 
   useEffect(() => {
     if (open) {
-      // Reset form when dialog opens
-      setConditionType('single_user');
-      setTargetUserId('');
-      setConditionAction('');
-      setConditionAmount('');
-      setConditionUnit('');
-      setPromiseAction('');
-      setPromiseAmount('');
-      setPromiseUnit('');
-      setNaturalLanguageText('');
+      if (initialCommitment) {
+        // Edit mode - populate with existing values
+        const { parsedCommitment, naturalLanguageText: nlText } = initialCommitment;
+        setConditionType(parsedCommitment.condition.type);
+        setTargetUserId(parsedCommitment.condition.targetUserId || '');
+        setConditionAction(parsedCommitment.condition.action || '');
+        setConditionAmount(parsedCommitment.condition.minAmount?.toString() || '');
+        setConditionUnit(parsedCommitment.condition.unit || '');
+        setPromiseAction(parsedCommitment.promise.action);
+        setPromiseAmount(parsedCommitment.promise.minAmount.toString());
+        setPromiseUnit(parsedCommitment.promise.unit);
+        setNaturalLanguageText(nlText || '');
+      } else {
+        // Create mode - reset form
+        setConditionType('single_user');
+        setTargetUserId('');
+        setConditionAction('');
+        setConditionAmount('');
+        setConditionUnit('');
+        setPromiseAction('');
+        setPromiseAmount('');
+        setPromiseUnit('');
+        setNaturalLanguageText('');
+      }
       setValidationError(null);
     }
-  }, [open]);
+  }, [open, initialCommitment]);
 
   const handleSubmit = () => {
-    // Validate inputs
-    if (!conditionAction.trim()) {
-      setValidationError('Condition action is required');
-      return;
+    // Validate inputs for conditional commitments
+    if (conditionType !== 'unconditional') {
+      if (!conditionAction.trim()) {
+        setValidationError('Condition action is required');
+        return;
+      }
+      if (!conditionAmount || parseFloat(conditionAmount) <= 0) {
+        setValidationError('Condition amount must be greater than 0');
+        return;
+      }
+      if (!conditionUnit.trim()) {
+        setValidationError('Condition unit is required');
+        return;
+      }
+      if (conditionType === 'single_user' && !targetUserId) {
+        setValidationError('Target user is required for single user condition');
+        return;
+      }
     }
-    if (!conditionAmount || parseFloat(conditionAmount) <= 0) {
-      setValidationError('Condition amount must be greater than 0');
-      return;
-    }
-    if (!conditionUnit.trim()) {
-      setValidationError('Condition unit is required');
-      return;
-    }
-    if (conditionType === 'single_user' && !targetUserId) {
-      setValidationError('Target user is required for single user condition');
-      return;
-    }
+    
+    // Always validate promise
     if (!promiseAction.trim()) {
       setValidationError('Promise action is required');
       return;
@@ -98,14 +119,18 @@ export function CreateCommitmentDialog({
 
     const targetMember = members.find(m => m.userId === targetUserId);
     const parsedCommitment: ParsedCommitment = {
-      condition: {
-        type: conditionType,
-        targetUserId: conditionType === 'single_user' ? targetUserId : undefined,
-        targetUsername: conditionType === 'single_user' && targetMember ? targetMember.username : undefined,
-        action: conditionAction.trim(),
-        minAmount: parseFloat(conditionAmount),
-        unit: conditionUnit.trim(),
-      },
+      condition: conditionType === 'unconditional' 
+        ? {
+            type: 'unconditional',
+          }
+        : {
+            type: conditionType,
+            targetUserId: conditionType === 'single_user' ? targetUserId : undefined,
+            targetUsername: conditionType === 'single_user' && targetMember ? targetMember.username : undefined,
+            action: conditionAction.trim(),
+            minAmount: parseFloat(conditionAmount),
+            unit: conditionUnit.trim(),
+          },
       promise: {
         action: promiseAction.trim(),
         minAmount: parseFloat(promiseAmount),
@@ -118,7 +143,7 @@ export function CreateCommitmentDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Create New Commitment</DialogTitle>
+      <DialogTitle>{isEditMode ? 'Edit Commitment' : 'Create New Commitment'}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           {(error || validationError) && (
@@ -149,8 +174,13 @@ export function CreateCommitmentDialog({
             <FormLabel component="legend">Condition Type</FormLabel>
             <RadioGroup
               value={conditionType}
-              onChange={(e) => setConditionType(e.target.value as 'single_user' | 'aggregate')}
+              onChange={(e) => setConditionType(e.target.value as 'single_user' | 'aggregate' | 'unconditional')}
             >
+              <FormControlLabel
+                value="unconditional"
+                control={<Radio />}
+                label="Unconditional - I commit regardless of what others do"
+              />
               <FormControlLabel
                 value="single_user"
                 control={<Radio />}
@@ -164,50 +194,54 @@ export function CreateCommitmentDialog({
             </RadioGroup>
           </FormControl>
 
-          {conditionType === 'single_user' && (
-            <FormControl fullWidth>
-              <InputLabel>Target User</InputLabel>
-              <Select
-                value={targetUserId}
-                onChange={(e) => setTargetUserId(e.target.value)}
-                label="Target User"
-              >
-                {members.map((member) => (
-                  <MenuItem key={member.userId} value={member.userId}>
-                    {member.username} ({member.email})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
+          {conditionType !== 'unconditional' && (
+            <>
+              {conditionType === 'single_user' && (
+                <FormControl fullWidth>
+                  <InputLabel>Target User</InputLabel>
+                  <Select
+                    value={targetUserId}
+                    onChange={(e) => setTargetUserId(e.target.value)}
+                    label="Target User"
+                  >
+                    {members.map((member) => (
+                      <MenuItem key={member.userId} value={member.userId}>
+                        {member.username} ({member.email})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
 
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <TextField
-              label="Action"
-              value={conditionAction}
-              onChange={(e) => setConditionAction(e.target.value)}
-              placeholder="e.g., work, contribute, donate"
-              fullWidth
-              required
-            />
-            <TextField
-              label="Minimum Amount"
-              type="number"
-              value={conditionAmount}
-              onChange={(e) => setConditionAmount(e.target.value)}
-              inputProps={{ min: 0, step: 0.1 }}
-              sx={{ width: '200px' }}
-              required
-            />
-            <TextField
-              label="Unit"
-              value={conditionUnit}
-              onChange={(e) => setConditionUnit(e.target.value)}
-              placeholder="e.g., hours, dollars"
-              sx={{ width: '200px' }}
-              required
-            />
-          </Box>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <TextField
+                  label="Action"
+                  value={conditionAction}
+                  onChange={(e) => setConditionAction(e.target.value)}
+                  placeholder="e.g., work, contribute, donate"
+                  fullWidth
+                  required
+                />
+                <TextField
+                  label="Minimum Amount"
+                  type="number"
+                  value={conditionAmount}
+                  onChange={(e) => setConditionAmount(e.target.value)}
+                  inputProps={{ min: 0, step: 0.1 }}
+                  sx={{ width: '200px' }}
+                  required
+                />
+                <TextField
+                  label="Unit"
+                  value={conditionUnit}
+                  onChange={(e) => setConditionUnit(e.target.value)}
+                  placeholder="e.g., hours, dollars"
+                  sx={{ width: '200px' }}
+                  required
+                />
+              </Box>
+            </>
+          )}
 
           <Divider />
 
@@ -250,7 +284,7 @@ export function CreateCommitmentDialog({
           Cancel
         </Button>
         <Button onClick={handleSubmit} variant="contained" disabled={loading}>
-          {loading ? 'Creating...' : 'Create Commitment'}
+          {loading ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Commitment' : 'Create Commitment')}
         </Button>
       </DialogActions>
     </Dialog>

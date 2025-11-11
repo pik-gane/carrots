@@ -82,10 +82,22 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
     });
 
     const warnings: string[] = [];
-    const actionsToCheck = [
-      { action: parsedCommitment.condition.action, unit: parsedCommitment.condition.unit, type: 'condition' },
-      { action: parsedCommitment.promise.action, unit: parsedCommitment.promise.unit, type: 'promise' },
-    ];
+    const actionsToCheck = [];
+    
+    // Only check condition if it's not unconditional
+    if (parsedCommitment.condition.type !== 'unconditional' && parsedCommitment.condition.action) {
+      actionsToCheck.push({ 
+        action: parsedCommitment.condition.action, 
+        unit: parsedCommitment.condition.unit!, 
+        type: 'condition' 
+      });
+    }
+    
+    actionsToCheck.push({ 
+      action: parsedCommitment.promise.action, 
+      unit: parsedCommitment.promise.unit, 
+      type: 'promise' 
+    });
 
     for (const { action, unit, type } of actionsToCheck) {
       // Find existing units for this action
@@ -408,10 +420,22 @@ router.put('/:id', apiRateLimiter, authenticate, async (req: Request, res: Respo
         },
       });
 
-      const actionsToCheck = [
-        { action: parsedCommitment.condition.action, unit: parsedCommitment.condition.unit, type: 'condition' },
-        { action: parsedCommitment.promise.action, unit: parsedCommitment.promise.unit, type: 'promise' },
-      ];
+      const actionsToCheck = [];
+      
+      // Only check condition if it's not unconditional
+      if (parsedCommitment.condition.type !== 'unconditional' && parsedCommitment.condition.action) {
+        actionsToCheck.push({ 
+          action: parsedCommitment.condition.action, 
+          unit: parsedCommitment.condition.unit!, 
+          type: 'condition' 
+        });
+      }
+      
+      actionsToCheck.push({ 
+        action: parsedCommitment.promise.action, 
+        unit: parsedCommitment.promise.unit, 
+        type: 'promise' 
+      });
 
       for (const { action, unit, type } of actionsToCheck) {
         // Find existing units for this action

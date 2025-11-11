@@ -23,7 +23,9 @@ export function CommitmentCard({ commitment, currentUserId, onEdit, onRevoke }: 
 
   const formatCondition = () => {
     const { condition } = commitment.parsedCommitment;
-    if (condition.type === 'single_user' && condition.targetUsername) {
+    if (condition.type === 'unconditional') {
+      return 'Unconditionally';
+    } else if (condition.type === 'single_user' && condition.targetUsername) {
       return `If ${condition.targetUsername} does at least ${condition.minAmount} ${condition.unit} of ${condition.action}`;
     } else if (condition.type === 'aggregate') {
       return `If others do at least ${condition.minAmount} ${condition.unit} of ${condition.action} combined`;
@@ -61,6 +63,9 @@ export function CommitmentCard({ commitment, currentUserId, onEdit, onRevoke }: 
               />
               {commitment.conditionType === 'aggregate' && (
                 <Chip label="Aggregate" size="small" variant="outlined" />
+              )}
+              {commitment.conditionType === 'unconditional' && (
+                <Chip label="Unconditional" size="small" variant="outlined" color="success" />
               )}
             </Box>
           </Box>
