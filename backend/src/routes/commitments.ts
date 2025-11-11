@@ -73,6 +73,43 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
       }
     }
 
+    // Check for existing commitments with the same action but different units
+    const existingCommitments = await prisma.commitment.findMany({
+      where: {
+        groupId,
+        status: 'active',
+      },
+    });
+
+    const warnings: string[] = [];
+    const actionsToCheck = [
+      { action: parsedCommitment.condition.action, unit: parsedCommitment.condition.unit, type: 'condition' },
+      { action: parsedCommitment.promise.action, unit: parsedCommitment.promise.unit, type: 'promise' },
+    ];
+
+    for (const { action, unit, type } of actionsToCheck) {
+      // Find existing units for this action
+      const existingUnits = new Set<string>();
+      for (const commitment of existingCommitments) {
+        const parsed = commitment.parsedCommitment as any;
+        if (parsed.condition?.action === action && parsed.condition?.unit !== unit) {
+          existingUnits.add(parsed.condition.unit);
+        }
+        if (parsed.promise?.action === action && parsed.promise?.unit !== unit) {
+          existingUnits.add(parsed.promise.unit);
+        }
+      }
+
+      if (existingUnits.size > 0) {
+        const unitsList = Array.from(existingUnits).join(', ');
+        warnings.push(
+          `Action "${action}" in your ${type} uses unit "${unit}", but other commitments in this group use: ${unitsList}. ` +
+          `Using different units will result in these being treated as separate actions. ` +
+          `Consider using the existing unit(s) for consistency.`
+        );
+      }
+    }
+
     // Determine condition type for the commitment
     const conditionType = parsedCommitment.condition.type;
 
@@ -104,7 +141,14 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
     });
 
     logger.info('Commitment created', { commitmentId: commitment.id, creatorId: userId, groupId });
-    res.status(201).json(commitment);
+    
+    // Return commitment with warnings if any
+    const response: any = commitment;
+    if (warnings.length > 0) {
+      response.warnings = warnings;
+    }
+    
+    res.status(201).json(response);
   } catch (error) {
     logger.error('Create commitment error', { error });
     res.status(500).json({
@@ -353,6 +397,46 @@ router.put('/:id', apiRateLimiter, authenticate, async (req: Request, res: Respo
       }
     }
 
+    // Check for existing commitments with the same action but different units
+    const warnings: string[] = [];
+    if (parsedCommitment) {
+      const existingCommitments = await prisma.commitment.findMany({
+        where: {
+          groupId: commitment.groupId,
+          status: 'active',
+          id: { not: id }, // Exclude current commitment
+        },
+      });
+
+      const actionsToCheck = [
+        { action: parsedCommitment.condition.action, unit: parsedCommitment.condition.unit, type: 'condition' },
+        { action: parsedCommitment.promise.action, unit: parsedCommitment.promise.unit, type: 'promise' },
+      ];
+
+      for (const { action, unit, type } of actionsToCheck) {
+        // Find existing units for this action
+        const existingUnits = new Set<string>();
+        for (const existing of existingCommitments) {
+          const parsed = existing.parsedCommitment as any;
+          if (parsed.condition?.action === action && parsed.condition?.unit !== unit) {
+            existingUnits.add(parsed.condition.unit);
+          }
+          if (parsed.promise?.action === action && parsed.promise?.unit !== unit) {
+            existingUnits.add(parsed.promise.unit);
+          }
+        }
+
+        if (existingUnits.size > 0) {
+          const unitsList = Array.from(existingUnits).join(', ');
+          warnings.push(
+            `Action "${action}" in your ${type} uses unit "${unit}", but other commitments in this group use: ${unitsList}. ` +
+            `Using different units will result in these being treated as separate actions. ` +
+            `Consider using the existing unit(s) for consistency.`
+          );
+        }
+      }
+    }
+
     // Update the commitment
     const updateData: any = {};
     if (parsedCommitment) {
@@ -384,7 +468,14 @@ router.put('/:id', apiRateLimiter, authenticate, async (req: Request, res: Respo
     });
 
     logger.info('Commitment updated', { commitmentId: id, updatedBy: userId });
-    res.status(200).json(updatedCommitment);
+    
+    // Return commitment with warnings if any
+    const response: any = updatedCommitment;
+    if (warnings.length > 0) {
+      response.warnings = warnings;
+    }
+    
+    res.status(200).json(response);
   } catch (error) {
     logger.error('Update commitment error', { error });
     res.status(500).json({

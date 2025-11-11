@@ -104,6 +104,7 @@ describe('Commitment Routes', () => {
 
       prisma.groupMembership.findUnique.mockResolvedValueOnce(groupMembership);
       prisma.groupMembership.findUnique.mockResolvedValueOnce(targetMembership);
+      prisma.commitment.findMany.mockResolvedValue([]); // No existing commitments
       prisma.commitment.create.mockResolvedValue(createdCommitment);
 
       const response = await request(app)
@@ -165,6 +166,7 @@ describe('Commitment Routes', () => {
       };
 
       prisma.groupMembership.findUnique.mockResolvedValueOnce(groupMembership);
+      prisma.commitment.findMany.mockResolvedValue([]); // No existing commitments
       prisma.commitment.create.mockResolvedValue(createdCommitment);
 
       const response = await request(app)
@@ -175,6 +177,94 @@ describe('Commitment Routes', () => {
       expect(response.body).toHaveProperty('id');
       expect(response.body.status).toBe('active');
       expect(response.body.conditionType).toBe('aggregate');
+    });
+
+    it('should warn when using different unit for existing action', async () => {
+      const newCommitment = {
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        parsedCommitment: {
+          condition: {
+            type: 'aggregate',
+            action: 'cleaning',
+            minAmount: 10,
+            unit: 'times',
+          },
+          promise: {
+            action: 'cooking',
+            minAmount: 5,
+            unit: 'hours',
+          },
+        },
+      };
+
+      const groupMembership = {
+        id: '147ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        userId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
+        role: 'member',
+        group: { id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', name: 'Test Group' },
+      };
+
+      // Existing commitment with cleaning in hours
+      const existingCommitments = [
+        {
+          id: 'existing-1',
+          groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          status: 'active',
+          parsedCommitment: {
+            condition: {
+              type: 'aggregate',
+              action: 'cleaning',
+              minAmount: 5,
+              unit: 'hours',
+            },
+            promise: {
+              action: 'other',
+              minAmount: 3,
+              unit: 'hours',
+            },
+          },
+        },
+      ];
+
+      const createdCommitment = {
+        id: 'd47ac10b-58cc-4372-a567-0e02b2c3d479',
+        groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
+        status: 'active',
+        conditionType: 'aggregate',
+        naturalLanguageText: null,
+        parsedCommitment: newCommitment.parsedCommitment,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        revokedAt: null,
+        creator: {
+          id: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
+          username: 'testuser',
+          email: 'test@example.com',
+        },
+        group: {
+          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          name: 'Test Group',
+        },
+      };
+
+      prisma.groupMembership.findUnique.mockResolvedValueOnce(groupMembership);
+      prisma.commitment.findMany.mockResolvedValue(existingCommitments);
+      prisma.commitment.create.mockResolvedValue(createdCommitment);
+
+      const response = await request(app)
+        .post('/api/commitments')
+        .send(newCommitment)
+        .expect(201);
+
+      expect(response.body).toHaveProperty('id');
+      expect(response.body).toHaveProperty('warnings');
+      expect(response.body.warnings).toBeInstanceOf(Array);
+      expect(response.body.warnings.length).toBeGreaterThan(0);
+      expect(response.body.warnings[0]).toContain('cleaning');
+      expect(response.body.warnings[0]).toContain('times');
+      expect(response.body.warnings[0]).toContain('hours');
     });
 
     it('should reject commitment if user is not a group member', async () => {
@@ -503,6 +593,7 @@ describe('Commitment Routes', () => {
 
       prisma.commitment.findUnique.mockResolvedValue(commitment);
       prisma.groupMembership.findUnique.mockResolvedValue(targetMembership);
+      prisma.commitment.findMany.mockResolvedValue([]); // No existing commitments
       prisma.commitment.update.mockResolvedValue(updatedCommitment);
 
       const response = await request(app)

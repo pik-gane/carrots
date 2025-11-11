@@ -104,13 +104,15 @@ export class SimpleLiabilityCalculator {
           const action = commitment.parsedCommitment.promise.action;
           const amount = commitment.parsedCommitment.promise.minAmount;
           const unit = commitment.parsedCommitment.promise.unit;
+          // Use composite key "action:unit" to differentiate actions by unit
+          const actionUnitKey = `${action}:${unit}`;
 
           // Initialize user-action if not exists
           if (!liabilities[userId]) {
             liabilities[userId] = {};
           }
-          if (!liabilities[userId][action]) {
-            liabilities[userId][action] = {
+          if (!liabilities[userId][actionUnitKey]) {
+            liabilities[userId][actionUnitKey] = {
               amount: 0,
               unit,
               effectiveCommitmentIds: [],
@@ -118,13 +120,13 @@ export class SimpleLiabilityCalculator {
           }
 
           // Update to max committed value
-          if (amount > liabilities[userId][action].amount) {
-            liabilities[userId][action].amount = amount;
-            liabilities[userId][action].unit = unit;
-            liabilities[userId][action].effectiveCommitmentIds = [commitment.id];
-          } else if (amount === liabilities[userId][action].amount && amount > 0) {
-            if (!liabilities[userId][action].effectiveCommitmentIds.includes(commitment.id)) {
-              liabilities[userId][action].effectiveCommitmentIds.push(commitment.id);
+          if (amount > liabilities[userId][actionUnitKey].amount) {
+            liabilities[userId][actionUnitKey].amount = amount;
+            liabilities[userId][actionUnitKey].unit = unit;
+            liabilities[userId][actionUnitKey].effectiveCommitmentIds = [commitment.id];
+          } else if (amount === liabilities[userId][actionUnitKey].amount && amount > 0) {
+            if (!liabilities[userId][actionUnitKey].effectiveCommitmentIds.includes(commitment.id)) {
+              liabilities[userId][actionUnitKey].effectiveCommitmentIds.push(commitment.id);
             }
           }
         }
@@ -154,16 +156,16 @@ export class SimpleLiabilityCalculator {
   ): boolean {
     if (condition.type === 'single_user') {
       const userId = condition.targetUserId!;
-      const action = condition.action;
-      const userLiability = currentLiabilities[userId]?.[action]?.amount || 0;
+      const actionUnitKey = `${condition.action}:${condition.unit}`;
+      const userLiability = currentLiabilities[userId]?.[actionUnitKey]?.amount || 0;
       return userLiability >= condition.minAmount;
     } else if (condition.type === 'aggregate') {
-      const action = condition.action;
-      // Sum all users' liabilities for this action, excluding the creator
+      const actionUnitKey = `${condition.action}:${condition.unit}`;
+      // Sum all users' liabilities for this action:unit combination, excluding the creator
       let totalLiability = 0;
       for (const userId of Object.keys(currentLiabilities)) {
         if (userId !== creatorId) {
-          totalLiability += currentLiabilities[userId]?.[action]?.amount || 0;
+          totalLiability += currentLiabilities[userId]?.[actionUnitKey]?.amount || 0;
         }
       }
       return totalLiability >= condition.minAmount;
@@ -207,29 +209,34 @@ export class SimpleLiabilityCalculator {
 
   /**
    * Extract all unique action-unit pairs from commitments
+   * Returns a Map where key is "action:unit" composite string
    */
   private extractUniqueActionUnits(commitments: SimpleCommitment[]): Map<string, string> {
     const actionUnits = new Map<string, string>();
 
     for (const commitment of commitments) {
       const { condition, promise } = commitment.parsedCommitment;
-      actionUnits.set(condition.action, condition.unit);
-      actionUnits.set(promise.action, promise.unit);
+      // Use composite key "action:unit" to treat different units as different actions
+      const conditionKey = `${condition.action}:${condition.unit}`;
+      const promiseKey = `${promise.action}:${promise.unit}`;
+      actionUnits.set(conditionKey, condition.unit);
+      actionUnits.set(promiseKey, promise.unit);
     }
 
     return actionUnits;
   }
 
   /**
-   * Initialize liabilities to zero for all users and actions
+   * Initialize liabilities to zero for all users and action:unit combinations
    */
   private initializeLiabilities(userIds: string[], actionUnits: Map<string, string>): LiabilityMap {
     const liabilities: LiabilityMap = {};
 
     for (const userId of userIds) {
       liabilities[userId] = {};
-      for (const [action, unit] of actionUnits.entries()) {
-        liabilities[userId][action] = {
+      for (const [actionUnitKey, unit] of actionUnits.entries()) {
+        // actionUnitKey is "action:unit"
+        liabilities[userId][actionUnitKey] = {
           amount: 0,
           unit,
           effectiveCommitmentIds: [],
@@ -289,9 +296,11 @@ export class SimpleLiabilityCalculator {
     const result: CalculatedLiability[] = [];
 
     for (const userId of Object.keys(liabilities)) {
-      for (const action of Object.keys(liabilities[userId])) {
-        const liability = liabilities[userId][action];
+      for (const actionUnitKey of Object.keys(liabilities[userId])) {
+        const liability = liabilities[userId][actionUnitKey];
         if (liability.amount > 0) {
+          // Extract action from composite key "action:unit"
+          const [action] = actionUnitKey.split(':');
           result.push({
             userId,
             username: userMap.get(userId),
