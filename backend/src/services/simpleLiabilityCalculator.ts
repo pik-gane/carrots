@@ -221,10 +221,15 @@ export class SimpleLiabilityCalculator {
 
     for (const commitment of commitments) {
       const { condition, promise } = commitment.parsedCommitment;
-      // Use composite key "action:unit" to treat different units as different actions
-      const conditionKey = `${condition.action}:${condition.unit}`;
+      
+      // Only process condition if it's not unconditional (has action and unit)
+      if (condition.action && condition.unit) {
+        const conditionKey = `${condition.action}:${condition.unit}`;
+        actionUnits.set(conditionKey, condition.unit);
+      }
+      
+      // Promise always has action and unit
       const promiseKey = `${promise.action}:${promise.unit}`;
-      actionUnits.set(conditionKey, condition.unit);
       actionUnits.set(promiseKey, promise.unit);
     }
 
