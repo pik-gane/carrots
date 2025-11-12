@@ -46,6 +46,39 @@ carrots/
 
 ### Development Setup
 
+#### Using Docker Compose (Recommended)
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/pik-gane/carrots.git
+   cd carrots
+   ```
+
+2. **Set up environment (automatic)**
+   ```bash
+   ./setup-env.sh
+   ```
+   Choose option 1 to use Docker Compose credentials.
+
+3. **Start the application**
+   ```bash
+   docker compose up -d
+   ```
+
+4. **Access the application**
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:3001
+
+5. **(Optional) Seed demo data**
+   ```bash
+   cd backend
+   npm run prisma:demo-seed
+   ```
+
+See [SETUP.md](./SETUP.md) for detailed setup instructions, troubleshooting, and demo data information.
+
+#### Manual Setup (Without Docker)
+
 1. **Clone the repository**
    ```bash
    git clone https://github.com/pik-gane/carrots.git
@@ -58,23 +91,25 @@ carrots/
    createdb carrots_dev
    ```
 
-3. **Set up backend**
+3. **Set up environment**
+   ```bash
+   ./setup-env.sh
+   ```
+   Choose option 2 for custom credentials or manually copy `.env.example` to `.env` in the backend directory.
+
+4. **Set up backend**
    ```bash
    cd backend
    npm install
    
-   # Create .env file
-   cp .env.example .env
-   # Edit .env with your database URL and API keys
-   
    # Run migrations
-   npm run prisma:migrate
+   npm run prisma:migrate:dev
    
    # Start development server
    npm run dev
    ```
 
-4. **Set up frontend**
+5. **Set up frontend**
    ```bash
    cd frontend
    npm install
@@ -84,16 +119,16 @@ carrots/
    # Edit .env with your API URL
    
    # Start development server
-   npm start
+   npm run dev
    ```
 
-5. **Access the application**
+6. **Access the application**
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:3001
-   - API Docs: http://localhost:3001/api-docs
 
 ## Documentation
 
+- **[Environment Setup Guide](./SETUP.md)** - Detailed setup instructions and troubleshooting
 - [Architecture Documentation](./ARCHITECTURE.md) - System design and technical architecture
 - [Implementation Strategy](./IMPLEMENTATION_STRATEGY.md) - Development roadmap and implementation plan
 - [API Documentation](./backend/docs/API.md) - API endpoints and usage (coming soon)
