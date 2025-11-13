@@ -49,18 +49,18 @@ describe('Commitment Routes', () => {
       const newCommitment = {
         groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         parsedCommitment: {
-          condition: {
-            type: 'single_user',
+          conditions: [{
             targetUserId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
             action: 'work',
             minAmount: 5,
             unit: 'hours',
-          },
-          promise: {
+          }],
+          promises: [{
             action: 'help',
-            minAmount: 3,
+            baseAmount: 3,
+            proportionalAmount: 0,
             unit: 'hours',
-          },
+          }],
         },
         naturalLanguageText: 'If user-456 does at least 5 hours of work, I will do at least 3 hours of help',
       };
@@ -117,21 +117,22 @@ describe('Commitment Routes', () => {
       expect(response.body.conditionType).toBe('single_user');
     });
 
-    it('should create a new commitment with aggregate condition', async () => {
+    it('should create a new commitment with multiple conditions', async () => {
       const newCommitment = {
         groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         parsedCommitment: {
-          condition: {
-            type: 'aggregate',
+          conditions: [{
+            targetUserId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
             action: 'work',
             minAmount: 10,
             unit: 'hours',
-          },
-          promise: {
+          }],
+          promises: [{
             action: 'help',
-            minAmount: 5,
+            baseAmount: 5,
+            proportionalAmount: 0,
             unit: 'hours',
-          },
+          }],
         },
       };
 
@@ -148,7 +149,7 @@ describe('Commitment Routes', () => {
         groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'active',
-        conditionType: 'aggregate',
+        conditionType: 'single_user', // Now all conditions have targetUserId
         naturalLanguageText: null,
         parsedCommitment: newCommitment.parsedCommitment,
         createdAt: new Date(),
@@ -166,6 +167,7 @@ describe('Commitment Routes', () => {
       };
 
       prisma.groupMembership.findUnique.mockResolvedValueOnce(groupMembership);
+      prisma.groupMembership.findUnique.mockResolvedValueOnce({ userId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479' }); // Target user membership
       prisma.commitment.findMany.mockResolvedValue([]); // No existing commitments
       prisma.commitment.create.mockResolvedValue(createdCommitment);
 
@@ -176,24 +178,25 @@ describe('Commitment Routes', () => {
 
       expect(response.body).toHaveProperty('id');
       expect(response.body.status).toBe('active');
-      expect(response.body.conditionType).toBe('aggregate');
+      expect(response.body.conditionType).toBe('single_user');
     });
 
     it('should warn when using different unit for existing action', async () => {
       const newCommitment = {
         groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         parsedCommitment: {
-          condition: {
-            type: 'aggregate',
+          conditions: [{
+            targetUserId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
             action: 'cleaning',
             minAmount: 10,
             unit: 'times',
-          },
-          promise: {
+          }],
+          promises: [{
             action: 'cooking',
-            minAmount: 5,
+            baseAmount: 5,
+            proportionalAmount: 0,
             unit: 'hours',
-          },
+          }],
         },
       };
 
@@ -212,17 +215,18 @@ describe('Commitment Routes', () => {
           groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
           status: 'active',
           parsedCommitment: {
-            condition: {
-              type: 'aggregate',
+            conditions: [{
+              targetUserId: 'c47ac10b-58cc-4372-a567-0e02b2c3d479',
               action: 'cleaning',
               minAmount: 5,
               unit: 'hours',
-            },
-            promise: {
+            }],
+            promises: [{
               action: 'other',
-              minAmount: 3,
+              baseAmount: 3,
+              proportionalAmount: 0,
               unit: 'hours',
-            },
+            }],
           },
         },
       ];
@@ -232,7 +236,7 @@ describe('Commitment Routes', () => {
         groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         creatorId: 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
         status: 'active',
-        conditionType: 'aggregate',
+        conditionType: 'single_user',
         naturalLanguageText: null,
         parsedCommitment: newCommitment.parsedCommitment,
         createdAt: new Date(),
@@ -250,6 +254,7 @@ describe('Commitment Routes', () => {
       };
 
       prisma.groupMembership.findUnique.mockResolvedValueOnce(groupMembership);
+      prisma.groupMembership.findUnique.mockResolvedValueOnce({ userId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479' }); // Target user membership
       prisma.commitment.findMany.mockResolvedValue(existingCommitments);
       prisma.commitment.create.mockResolvedValue(createdCommitment);
 
@@ -271,17 +276,18 @@ describe('Commitment Routes', () => {
       const newCommitment = {
         groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         parsedCommitment: {
-          condition: {
-            type: 'aggregate',
+          conditions: [{
+            targetUserId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
             action: 'work',
             minAmount: 10,
             unit: 'hours',
-          },
-          promise: {
+          }],
+          promises: [{
             action: 'help',
-            minAmount: 5,
+            baseAmount: 5,
+            proportionalAmount: 0,
             unit: 'hours',
-          },
+          }],
         },
       };
 
@@ -300,18 +306,18 @@ describe('Commitment Routes', () => {
       const newCommitment = {
         groupId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
         parsedCommitment: {
-          condition: {
-            type: 'single_user',
+          conditions: [{
             targetUserId: 'c47ac10b-58cc-4372-a567-0e02b2c3d479',
             action: 'work',
             minAmount: 5,
             unit: 'hours',
-          },
-          promise: {
+          }],
+          promises: [{
             action: 'help',
-            minAmount: 3,
+            baseAmount: 3,
+            proportionalAmount: 0,
             unit: 'hours',
-          },
+          }],
         },
       };
 
@@ -339,17 +345,18 @@ describe('Commitment Routes', () => {
       const invalidCommitment = {
         groupId: 'invalid-uuid',
         parsedCommitment: {
-          condition: {
-            type: 'invalid-type',
+          conditions: [{
+            targetUserId: 'invalid-uuid',
             action: 'work',
             minAmount: -5,
             unit: 'hours',
-          },
-          promise: {
+          }],
+          promises: [{
             action: 'help',
-            minAmount: 3,
+            baseAmount: 3,
+            proportionalAmount: 0,
             unit: 'hours',
-          },
+          }],
         },
       };
 
@@ -555,18 +562,18 @@ describe('Commitment Routes', () => {
 
       const updateData = {
         parsedCommitment: {
-          condition: {
-            type: 'single_user',
+          conditions: [{
             targetUserId: 'b47ac10b-58cc-4372-a567-0e02b2c3d479',
             action: 'work',
             minAmount: 10,
             unit: 'hours',
-          },
-          promise: {
+          }],
+          promises: [{
             action: 'help',
-            minAmount: 5,
+            baseAmount: 5,
+            proportionalAmount: 0,
             unit: 'hours',
-          },
+          }],
         },
       };
 

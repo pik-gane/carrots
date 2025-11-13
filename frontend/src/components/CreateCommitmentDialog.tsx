@@ -6,11 +6,6 @@ import {
   DialogActions,
   Button,
   TextField,
-  FormControl,
-  FormLabel,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
   Select,
   MenuItem,
   InputLabel,
@@ -18,8 +13,13 @@ import {
   Alert,
   Divider,
   Typography,
+  FormControl,
+  IconButton,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
-import { ParsedCommitment, GroupMember, Commitment } from '../types';
+import { Add, Delete } from '@mui/icons-material';
+import { ParsedCommitment, GroupMember, Commitment, CommitmentCondition, CommitmentPromise } from '../types';
 
 interface CreateCommitmentDialogProps {
   open: boolean;
@@ -41,14 +41,8 @@ export function CreateCommitmentDialog({
   initialCommitment,
 }: CreateCommitmentDialogProps) {
   const isEditMode = !!initialCommitment;
-  const [conditionType, setConditionType] = useState<'single_user' | 'aggregate' | 'unconditional'>('single_user');
-  const [targetUserId, setTargetUserId] = useState('');
-  const [conditionAction, setConditionAction] = useState('');
-  const [conditionAmount, setConditionAmount] = useState('');
-  const [conditionUnit, setConditionUnit] = useState('');
-  const [promiseAction, setPromiseAction] = useState('');
-  const [promiseAmount, setPromiseAmount] = useState('');
-  const [promiseUnit, setPromiseUnit] = useState('');
+  const [conditions, setConditions] = useState<CommitmentCondition[]>([]);
+  const [promises, setPromises] = useState<CommitmentPromise[]>([]);
   const [naturalLanguageText, setNaturalLanguageText] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -57,86 +51,149 @@ export function CreateCommitmentDialog({
       if (initialCommitment) {
         // Edit mode - populate with existing values
         const { parsedCommitment, naturalLanguageText: nlText } = initialCommitment;
-        setConditionType(parsedCommitment.condition.type);
-        setTargetUserId(parsedCommitment.condition.targetUserId || '');
-        setConditionAction(parsedCommitment.condition.action || '');
-        setConditionAmount(parsedCommitment.condition.minAmount?.toString() || '');
-        setConditionUnit(parsedCommitment.condition.unit || '');
-        setPromiseAction(parsedCommitment.promise.action);
-        setPromiseAmount(parsedCommitment.promise.minAmount.toString());
-        setPromiseUnit(parsedCommitment.promise.unit);
+        setConditions([...parsedCommitment.conditions]);
+        setPromises([...parsedCommitment.promises]);
         setNaturalLanguageText(nlText || '');
       } else {
-        // Create mode - reset form
-        setConditionType('single_user');
-        setTargetUserId('');
-        setConditionAction('');
-        setConditionAmount('');
-        setConditionUnit('');
-        setPromiseAction('');
-        setPromiseAmount('');
-        setPromiseUnit('');
+        // Create mode - start with one empty condition and one empty promise
+        setConditions([{
+          targetUserId: '',
+          action: '',
+          minAmount: 0,
+          unit: '',
+        }]);
+        setPromises([{
+          action: '',
+          baseAmount: 0,
+          proportionalAmount: 0,
+          unit: '',
+        }]);
         setNaturalLanguageText('');
       }
       setValidationError(null);
     }
   }, [open, initialCommitment]);
 
+  const addCondition = () => {
+    setConditions([...conditions, {
+      targetUserId: '',
+      action: '',
+      minAmount: 0,
+      unit: '',
+    }]);
+  };
+
+  const removeCondition = (index: number) => {
+    if (conditions.length > 1) {
+      setConditions(conditions.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateCondition = (index: number, field: keyof CommitmentCondition, value: any) => {
+    const newConditions = [...conditions];
+    newConditions[index] = { ...newConditions[index], [field]: value };
+    setConditions(newConditions);
+  };
+
+  const addPromise = () => {
+    setPromises([...promises, {
+      action: '',
+      baseAmount: 0,
+      proportionalAmount: 0,
+      unit: '',
+    }]);
+  };
+
+  const removePromise = (index: number) => {
+    if (promises.length > 1) {
+      setPromises(promises.filter((_, i) => i !== index));
+    }
+  };
+
+  const updatePromise = (index: number, field: keyof CommitmentPromise, value: any) => {
+    const newPromises = [...promises];
+    newPromises[index] = { ...newPromises[index], [field]: value };
+    setPromises(newPromises);
+  };
+
   const handleSubmit = () => {
-    // Validate inputs for conditional commitments
-    if (conditionType !== 'unconditional') {
-      if (!conditionAction.trim()) {
-        setValidationError('Condition action is required');
+    // Validate conditions
+    if (conditions.length === 0) {
+      setValidationError('At least one condition is required');
+      return;
+    }
+
+    for (let i = 0; i < conditions.length; i++) {
+      const condition = conditions[i];
+      if (!condition.targetUserId) {
+        setValidationError(`Condition ${i + 1}: Target user is required`);
         return;
       }
-      if (!conditionAmount || parseFloat(conditionAmount) <= 0) {
-        setValidationError('Condition amount must be greater than 0');
+      if (!condition.action.trim()) {
+        setValidationError(`Condition ${i + 1}: Action is required`);
         return;
       }
-      if (!conditionUnit.trim()) {
-        setValidationError('Condition unit is required');
+      if (condition.minAmount < 0) {
+        setValidationError(`Condition ${i + 1}: Minimum amount must be non-negative`);
         return;
       }
-      if (conditionType === 'single_user' && !targetUserId) {
-        setValidationError('Target user is required for single user condition');
+      if (!condition.unit.trim()) {
+        setValidationError(`Condition ${i + 1}: Unit is required`);
         return;
       }
     }
     
-    // Always validate promise
-    if (!promiseAction.trim()) {
-      setValidationError('Promise action is required');
-      return;
-    }
-    if (!promiseAmount || parseFloat(promiseAmount) <= 0) {
-      setValidationError('Promise amount must be greater than 0');
-      return;
-    }
-    if (!promiseUnit.trim()) {
-      setValidationError('Promise unit is required');
+    // Validate promises
+    if (promises.length === 0) {
+      setValidationError('At least one promise is required');
       return;
     }
 
-    const targetMember = members.find(m => m.userId === targetUserId);
+    for (let i = 0; i < promises.length; i++) {
+      const promise = promises[i];
+      if (!promise.action.trim()) {
+        setValidationError(`Promise ${i + 1}: Action is required`);
+        return;
+      }
+      if (promise.baseAmount < 0 || promise.proportionalAmount < 0) {
+        setValidationError(`Promise ${i + 1}: Amounts must be non-negative`);
+        return;
+      }
+      if (promise.baseAmount === 0 && promise.proportionalAmount === 0) {
+        setValidationError(`Promise ${i + 1}: Either base amount or proportional amount must be greater than 0`);
+        return;
+      }
+      if (promise.proportionalAmount > 0 && !promise.referenceAction) {
+        setValidationError(`Promise ${i + 1}: Reference action is required for proportional promises`);
+        return;
+      }
+      if (!promise.unit.trim()) {
+        setValidationError(`Promise ${i + 1}: Unit is required`);
+        return;
+      }
+    }
+
     const parsedCommitment: ParsedCommitment = {
-      condition: conditionType === 'unconditional' 
-        ? {
-            type: 'unconditional',
-          }
-        : {
-            type: conditionType,
-            targetUserId: conditionType === 'single_user' ? targetUserId : undefined,
-            targetUsername: conditionType === 'single_user' && targetMember ? targetMember.username : undefined,
-            action: conditionAction.trim(),
-            minAmount: parseFloat(conditionAmount),
-            unit: conditionUnit.trim(),
-          },
-      promise: {
-        action: promiseAction.trim(),
-        minAmount: parseFloat(promiseAmount),
-        unit: promiseUnit.trim(),
-      },
+      conditions: conditions.map(c => ({
+        targetUserId: c.targetUserId,
+        action: c.action.trim(),
+        minAmount: c.minAmount,
+        unit: c.unit.trim(),
+      })),
+      promises: promises.map(p => ({
+        action: p.action.trim(),
+        baseAmount: p.baseAmount,
+        proportionalAmount: p.proportionalAmount,
+        referenceUserId: p.referenceUserId || undefined,
+        referenceAction: p.referenceAction ? p.referenceAction.trim() : undefined,
+        thresholdAmount: p.thresholdAmount,
+        maxAmount: p.maxAmount,
+        unit: p.unit.trim(),
+      })),
     };
+
+    onSubmit(parsedCommitment, naturalLanguageText.trim() || undefined);
+  };
 
     onSubmit(parsedCommitment, naturalLanguageText.trim() || undefined);
   };
@@ -165,43 +222,33 @@ export function CreateCommitmentDialog({
 
           <Divider />
 
-          <Typography variant="h6" sx={{ mt: 1 }}>Condition</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+            <Typography variant="h6">Conditions (all must be met)</Typography>
+            <Button startIcon={<Add />} onClick={addCondition} size="small">
+              Add Condition
+            </Button>
+          </Box>
           <Typography variant="body2" color="text.secondary">
             What needs to happen for your promise to activate?
           </Typography>
 
-          <FormControl component="fieldset">
-            <FormLabel component="legend">Condition Type</FormLabel>
-            <RadioGroup
-              value={conditionType}
-              onChange={(e) => setConditionType(e.target.value as 'single_user' | 'aggregate' | 'unconditional')}
-            >
-              <FormControlLabel
-                value="unconditional"
-                control={<Radio />}
-                label="Unconditional - I commit regardless of what others do"
-              />
-              <FormControlLabel
-                value="single_user"
-                control={<Radio />}
-                label="Single User - Condition on one specific person"
-              />
-              <FormControlLabel
-                value="aggregate"
-                control={<Radio />}
-                label="Aggregate - Condition on combined actions of all others"
-              />
-            </RadioGroup>
-          </FormControl>
+          {conditions.map((condition, index) => (
+            <Box key={index} sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="subtitle2">Condition {index + 1}</Typography>
+                {conditions.length > 1 && (
+                  <IconButton size="small" onClick={() => removeCondition(index)} color="error">
+                    <Delete fontSize="small" />
+                  </IconButton>
+                )}
+              </Box>
 
-          {conditionType !== 'unconditional' && (
-            <>
-              {conditionType === 'single_user' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <FormControl fullWidth>
                   <InputLabel>Target User</InputLabel>
                   <Select
-                    value={targetUserId}
-                    onChange={(e) => setTargetUserId(e.target.value)}
+                    value={condition.targetUserId}
+                    onChange={(e) => updateCondition(index, 'targetUserId', e.target.value)}
                     label="Target User"
                   >
                     {members.map((member) => (
@@ -211,72 +258,161 @@ export function CreateCommitmentDialog({
                     ))}
                   </Select>
                 </FormControl>
-              )}
 
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <TextField
-                  label="Action"
-                  value={conditionAction}
-                  onChange={(e) => setConditionAction(e.target.value)}
-                  placeholder="e.g., work, contribute, donate"
-                  fullWidth
-                  required
-                />
-                <TextField
-                  label="Minimum Amount"
-                  type="number"
-                  value={conditionAmount}
-                  onChange={(e) => setConditionAmount(e.target.value)}
-                  inputProps={{ min: 0, step: 0.1 }}
-                  sx={{ width: '200px' }}
-                  required
-                />
-                <TextField
-                  label="Unit"
-                  value={conditionUnit}
-                  onChange={(e) => setConditionUnit(e.target.value)}
-                  placeholder="e.g., hours, dollars"
-                  sx={{ width: '200px' }}
-                  required
-                />
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <TextField
+                    label="Action"
+                    value={condition.action}
+                    onChange={(e) => updateCondition(index, 'action', e.target.value)}
+                    placeholder="e.g., work, contribute, donate"
+                    fullWidth
+                    required
+                  />
+                  <TextField
+                    label="Minimum Amount"
+                    type="number"
+                    value={condition.minAmount}
+                    onChange={(e) => updateCondition(index, 'minAmount', parseFloat(e.target.value) || 0)}
+                    inputProps={{ min: 0, step: 0.1 }}
+                    sx={{ width: '200px' }}
+                    required
+                  />
+                  <TextField
+                    label="Unit"
+                    value={condition.unit}
+                    onChange={(e) => updateCondition(index, 'unit', e.target.value)}
+                    placeholder="e.g., hours, dollars"
+                    sx={{ width: '200px' }}
+                    required
+                  />
+                </Box>
               </Box>
-            </>
-          )}
+            </Box>
+          ))}
 
           <Divider />
 
-          <Typography variant="h6" sx={{ mt: 1 }}>Promise</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+            <Typography variant="h6">Promises (what I will do)</Typography>
+            <Button startIcon={<Add />} onClick={addPromise} size="small">
+              Add Promise
+            </Button>
+          </Box>
           <Typography variant="body2" color="text.secondary">
-            What will you do if the condition is met?
+            What will you do if all conditions are met?
           </Typography>
 
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <TextField
-              label="Action"
-              value={promiseAction}
-              onChange={(e) => setPromiseAction(e.target.value)}
-              placeholder="e.g., work, contribute, donate"
-              fullWidth
-              required
-            />
-            <TextField
-              label="Minimum Amount"
-              type="number"
-              value={promiseAmount}
-              onChange={(e) => setPromiseAmount(e.target.value)}
-              inputProps={{ min: 0, step: 0.1 }}
-              sx={{ width: '200px' }}
-              required
-            />
-            <TextField
-              label="Unit"
-              value={promiseUnit}
-              onChange={(e) => setPromiseUnit(e.target.value)}
-              placeholder="e.g., hours, dollars"
-              sx={{ width: '200px' }}
-              required
-            />
-          </Box>
+          {promises.map((promise, index) => (
+            <Box key={index} sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="subtitle2">Promise {index + 1}</Typography>
+                {promises.length > 1 && (
+                  <IconButton size="small" onClick={() => removePromise(index)} color="error">
+                    <Delete fontSize="small" />
+                  </IconButton>
+                )}
+              </Box>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <TextField
+                    label="Action"
+                    value={promise.action}
+                    onChange={(e) => updatePromise(index, 'action', e.target.value)}
+                    placeholder="e.g., work, contribute, donate"
+                    fullWidth
+                    required
+                  />
+                  <TextField
+                    label="Unit"
+                    value={promise.unit}
+                    onChange={(e) => updatePromise(index, 'unit', e.target.value)}
+                    placeholder="e.g., hours, dollars"
+                    sx={{ width: '200px' }}
+                    required
+                  />
+                </Box>
+
+                <Typography variant="subtitle2">Base Amount</Typography>
+                <TextField
+                  label="Base Amount"
+                  type="number"
+                  value={promise.baseAmount}
+                  onChange={(e) => updatePromise(index, 'baseAmount', parseFloat(e.target.value) || 0)}
+                  inputProps={{ min: 0, step: 0.1 }}
+                  fullWidth
+                  helperText="Fixed amount you'll contribute regardless of others"
+                />
+
+                <Divider />
+                <Typography variant="subtitle2">Proportional Matching (Optional)</Typography>
+
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <TextField
+                    label="Proportional Amount (multiplier)"
+                    type="number"
+                    value={promise.proportionalAmount}
+                    onChange={(e) => updatePromise(index, 'proportionalAmount', parseFloat(e.target.value) || 0)}
+                    inputProps={{ min: 0, step: 0.1 }}
+                    fullWidth
+                    helperText="Amount per unit of reference action (e.g., 1.5 means match 1.5× each unit)"
+                  />
+                </Box>
+
+                {promise.proportionalAmount > 0 && (
+                  <>
+                    <FormControl fullWidth>
+                      <InputLabel>Reference User (optional - leave empty for aggregate)</InputLabel>
+                      <Select
+                        value={promise.referenceUserId || ''}
+                        onChange={(e) => updatePromise(index, 'referenceUserId', e.target.value || undefined)}
+                        label="Reference User (optional)"
+                      >
+                        <MenuItem value="">
+                          <em>None (aggregate all users)</em>
+                        </MenuItem>
+                        {members.map((member) => (
+                          <MenuItem key={member.userId} value={member.userId}>
+                            {member.username} ({member.email})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+
+                    <TextField
+                      label="Reference Action"
+                      value={promise.referenceAction || ''}
+                      onChange={(e) => updatePromise(index, 'referenceAction', e.target.value)}
+                      placeholder="e.g., work, contribute, donate"
+                      fullWidth
+                      required={promise.proportionalAmount > 0}
+                      helperText="The action to monitor for proportional matching"
+                    />
+
+                    <TextField
+                      label="Threshold Amount (optional)"
+                      type="number"
+                      value={promise.thresholdAmount || ''}
+                      onChange={(e) => updatePromise(index, 'thresholdAmount', parseFloat(e.target.value) || undefined)}
+                      inputProps={{ min: 0, step: 0.1 }}
+                      fullWidth
+                      helperText="Only match amounts above this threshold"
+                    />
+
+                    <TextField
+                      label="Max Amount (optional)"
+                      type="number"
+                      value={promise.maxAmount || ''}
+                      onChange={(e) => updatePromise(index, 'maxAmount', parseFloat(e.target.value) || undefined)}
+                      inputProps={{ min: 0, step: 0.1 }}
+                      fullWidth
+                      helperText="Cap the proportional contribution at this amount"
+                    />
+                  </>
+                )}
+              </Box>
+            </Box>
+          ))}
         </Box>
       </DialogContent>
       <DialogActions>

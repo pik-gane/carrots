@@ -54,22 +54,43 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
       return;
     }
 
-    // If condition is single_user, verify the target user is a member
-    if (parsedCommitment.condition.type === 'single_user' && parsedCommitment.condition.targetUserId) {
+    // Verify all condition target users are members
+    for (const condition of parsedCommitment.conditions) {
       const targetMembership = await prisma.groupMembership.findUnique({
         where: {
           groupId_userId: {
             groupId,
-            userId: parsedCommitment.condition.targetUserId,
+            userId: condition.targetUserId,
           },
         },
       });
 
       if (!targetMembership) {
         res.status(400).json({
-          error: 'Target user is not a member of this group',
+          error: `Target user ${condition.targetUserId} is not a member of this group`,
         });
         return;
+      }
+    }
+
+    // Verify all promise reference users (if specified) are members
+    for (const promise of parsedCommitment.promises) {
+      if (promise.referenceUserId) {
+        const refMembership = await prisma.groupMembership.findUnique({
+          where: {
+            groupId_userId: {
+              groupId,
+              userId: promise.referenceUserId,
+            },
+          },
+        });
+
+        if (!refMembership) {
+          res.status(400).json({
+            error: `Reference user ${promise.referenceUserId} is not a member of this group`,
+          });
+          return;
+        }
       }
     }
 
@@ -84,31 +105,55 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
     const warnings: string[] = [];
     const actionsToCheck = [];
     
-    // Only check condition if it's not unconditional
-    if (parsedCommitment.condition.type !== 'unconditional' && parsedCommitment.condition.action) {
+    // Check all conditions
+    for (const condition of parsedCommitment.conditions) {
       actionsToCheck.push({ 
-        action: parsedCommitment.condition.action, 
-        unit: parsedCommitment.condition.unit!, 
+        action: condition.action, 
+        unit: condition.unit, 
         type: 'condition' 
       });
     }
     
-    actionsToCheck.push({ 
-      action: parsedCommitment.promise.action, 
-      unit: parsedCommitment.promise.unit, 
-      type: 'promise' 
-    });
+    // Check all promises
+    for (const promise of parsedCommitment.promises) {
+      actionsToCheck.push({ 
+        action: promise.action, 
+        unit: promise.unit, 
+        type: 'promise' 
+      });
+      // Also check reference actions
+      if (promise.referenceAction) {
+        actionsToCheck.push({ 
+          action: promise.referenceAction, 
+          unit: promise.unit, 
+          type: 'reference action' 
+        });
+      }
+    }
 
     for (const { action, unit, type } of actionsToCheck) {
       // Find existing units for this action
       const existingUnits = new Set<string>();
       for (const commitment of existingCommitments) {
         const parsed = commitment.parsedCommitment as any;
-        if (parsed.condition?.action === action && parsed.condition?.unit !== unit) {
-          existingUnits.add(parsed.condition.unit);
+        // Check conditions array
+        if (parsed.conditions) {
+          for (const cond of parsed.conditions) {
+            if (cond.action === action && cond.unit !== unit) {
+              existingUnits.add(cond.unit);
+            }
+          }
         }
-        if (parsed.promise?.action === action && parsed.promise?.unit !== unit) {
-          existingUnits.add(parsed.promise.unit);
+        // Check promises array
+        if (parsed.promises) {
+          for (const prom of parsed.promises) {
+            if (prom.action === action && prom.unit !== unit) {
+              existingUnits.add(prom.unit);
+            }
+            if (prom.referenceAction === action && prom.unit !== unit) {
+              existingUnits.add(prom.unit);
+            }
+          }
         }
       }
 
@@ -122,8 +167,9 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
       }
     }
 
-    // Determine condition type for the commitment
-    const conditionType = parsedCommitment.condition.type;
+    // Determine condition type for the commitment (legacy field for compatibility)
+    // We'll use 'single_user' as the default since all conditions now have targetUserId
+    const conditionType = 'single_user';
 
     // Create the commitment
     const commitment = await prisma.commitment.create({
@@ -390,22 +436,45 @@ router.put('/:id', apiRateLimiter, authenticate, async (req: Request, res: Respo
       return;
     }
 
-    // If parsedCommitment is provided and condition is single_user, verify the target user is a member
-    if (parsedCommitment && parsedCommitment.condition.type === 'single_user' && parsedCommitment.condition.targetUserId) {
-      const targetMembership = await prisma.groupMembership.findUnique({
-        where: {
-          groupId_userId: {
-            groupId: commitment.groupId,
-            userId: parsedCommitment.condition.targetUserId,
+    // If parsedCommitment is provided, verify all condition target users are members
+    if (parsedCommitment) {
+      for (const condition of parsedCommitment.conditions) {
+        const targetMembership = await prisma.groupMembership.findUnique({
+          where: {
+            groupId_userId: {
+              groupId: commitment.groupId,
+              userId: condition.targetUserId,
+            },
           },
-        },
-      });
-
-      if (!targetMembership) {
-        res.status(400).json({
-          error: 'Target user is not a member of this group',
         });
-        return;
+
+        if (!targetMembership) {
+          res.status(400).json({
+            error: `Target user ${condition.targetUserId} is not a member of this group`,
+          });
+          return;
+        }
+      }
+
+      // Verify all promise reference users (if specified) are members
+      for (const promise of parsedCommitment.promises) {
+        if (promise.referenceUserId) {
+          const refMembership = await prisma.groupMembership.findUnique({
+            where: {
+              groupId_userId: {
+                groupId: commitment.groupId,
+                userId: promise.referenceUserId,
+              },
+            },
+          });
+
+          if (!refMembership) {
+            res.status(400).json({
+              error: `Reference user ${promise.referenceUserId} is not a member of this group`,
+            });
+            return;
+          }
+        }
       }
     }
 
@@ -422,31 +491,55 @@ router.put('/:id', apiRateLimiter, authenticate, async (req: Request, res: Respo
 
       const actionsToCheck = [];
       
-      // Only check condition if it's not unconditional
-      if (parsedCommitment.condition.type !== 'unconditional' && parsedCommitment.condition.action) {
+      // Check all conditions
+      for (const condition of parsedCommitment.conditions) {
         actionsToCheck.push({ 
-          action: parsedCommitment.condition.action, 
-          unit: parsedCommitment.condition.unit!, 
+          action: condition.action, 
+          unit: condition.unit, 
           type: 'condition' 
         });
       }
       
-      actionsToCheck.push({ 
-        action: parsedCommitment.promise.action, 
-        unit: parsedCommitment.promise.unit, 
-        type: 'promise' 
-      });
+      // Check all promises
+      for (const promise of parsedCommitment.promises) {
+        actionsToCheck.push({ 
+          action: promise.action, 
+          unit: promise.unit, 
+          type: 'promise' 
+        });
+        // Also check reference actions
+        if (promise.referenceAction) {
+          actionsToCheck.push({ 
+            action: promise.referenceAction, 
+            unit: promise.unit, 
+            type: 'reference action' 
+          });
+        }
+      }
 
       for (const { action, unit, type } of actionsToCheck) {
         // Find existing units for this action
         const existingUnits = new Set<string>();
         for (const existing of existingCommitments) {
           const parsed = existing.parsedCommitment as any;
-          if (parsed.condition?.action === action && parsed.condition?.unit !== unit) {
-            existingUnits.add(parsed.condition.unit);
+          // Check conditions array
+          if (parsed.conditions) {
+            for (const cond of parsed.conditions) {
+              if (cond.action === action && cond.unit !== unit) {
+                existingUnits.add(cond.unit);
+              }
+            }
           }
-          if (parsed.promise?.action === action && parsed.promise?.unit !== unit) {
-            existingUnits.add(parsed.promise.unit);
+          // Check promises array
+          if (parsed.promises) {
+            for (const prom of parsed.promises) {
+              if (prom.action === action && prom.unit !== unit) {
+                existingUnits.add(prom.unit);
+              }
+              if (prom.referenceAction === action && prom.unit !== unit) {
+                existingUnits.add(prom.unit);
+              }
+            }
           }
         }
 
@@ -465,7 +558,7 @@ router.put('/:id', apiRateLimiter, authenticate, async (req: Request, res: Respo
     const updateData: any = {};
     if (parsedCommitment) {
       updateData.parsedCommitment = parsedCommitment;
-      updateData.conditionType = parsedCommitment.condition.type;
+      updateData.conditionType = 'single_user'; // Legacy field for compatibility
     }
     if (naturalLanguageText !== undefined) {
       updateData.naturalLanguageText = naturalLanguageText;

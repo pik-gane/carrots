@@ -1,52 +1,44 @@
 import { z } from 'zod';
 
-// Schema for commitment condition
-export const conditionSchema = z.object({
-  type: z.enum(['single_user', 'aggregate', 'unconditional'], {
-    errorMap: () => ({ message: 'Condition type must be "single_user", "aggregate", or "unconditional"' }),
-  }),
-  targetUserId: z.string().uuid('Target user ID must be a valid UUID').optional(),
-  action: z.string().min(1, 'Action is required').max(100, 'Action must be at most 100 characters').optional(),
-  minAmount: z.number().positive('Minimum amount must be positive').optional(),
-  unit: z.string().min(1, 'Unit is required').max(50, 'Unit must be at most 50 characters').optional(),
+// Schema for individual condition in a conjunction
+export const commitmentConditionSchema = z.object({
+  targetUserId: z.string().uuid('Target user ID must be a valid UUID'),
+  action: z.string().min(1, 'Action is required').max(100, 'Action must be at most 100 characters'),
+  minAmount: z.number().nonnegative('Minimum amount must be non-negative'),
+  unit: z.string().min(1, 'Unit is required').max(50, 'Unit must be at most 50 characters'),
+});
+
+// Schema for individual promise (can be base or proportional with cap)
+export const commitmentPromiseSchema = z.object({
+  action: z.string().min(1, 'Action is required').max(100, 'Action must be at most 100 characters'),
+  baseAmount: z.number().nonnegative('Base amount must be non-negative'),
+  proportionalAmount: z.number().nonnegative('Proportional amount must be non-negative'),
+  referenceUserId: z.string().uuid('Reference user ID must be a valid UUID').optional(),
+  referenceAction: z.string().min(1).max(100).optional(),
+  thresholdAmount: z.number().nonnegative('Threshold amount must be non-negative').optional(),
+  maxAmount: z.number().positive('Max amount must be positive').optional(),
+  unit: z.string().min(1, 'Unit is required').max(50, 'Unit must be at most 50 characters'),
 }).refine(
   (data) => {
-    // If type is unconditional, no other fields should be provided
-    if (data.type === 'unconditional') {
-      return !data.targetUserId && !data.action && !data.minAmount && !data.unit;
+    // If proportionalAmount > 0, then referenceAction must be provided
+    if (data.proportionalAmount > 0 && !data.referenceAction) {
+      return false;
     }
-    // If type is single_user or aggregate, all fields must be provided
-    if (data.type === 'single_user' || data.type === 'aggregate') {
-      if (!data.action || !data.minAmount || !data.unit) {
-        return false;
-      }
-      // If type is single_user, targetUserId must be provided
-      if (data.type === 'single_user' && !data.targetUserId) {
-        return false;
-      }
-      // If type is aggregate, targetUserId should not be provided
-      if (data.type === 'aggregate' && data.targetUserId) {
-        return false;
-      }
+    // At least one of baseAmount or proportionalAmount must be > 0
+    if (data.baseAmount === 0 && data.proportionalAmount === 0) {
+      return false;
     }
     return true;
   },
   {
-    message: 'Invalid condition: unconditional requires no fields, single_user requires targetUserId/action/minAmount/unit, aggregate requires action/minAmount/unit only',
+    message: 'Promise must have either baseAmount > 0 or (proportionalAmount > 0 and referenceAction)',
   }
 );
 
-// Schema for commitment promise
-export const promiseSchema = z.object({
-  action: z.string().min(1, 'Action is required').max(100, 'Action must be at most 100 characters'),
-  minAmount: z.number().positive('Minimum amount must be positive'),
-  unit: z.string().min(1, 'Unit is required').max(50, 'Unit must be at most 50 characters'),
-});
-
 // Schema for parsed commitment
 export const parsedCommitmentSchema = z.object({
-  condition: conditionSchema,
-  promise: promiseSchema,
+  conditions: z.array(commitmentConditionSchema).min(1, 'At least one condition is required'),
+  promises: z.array(commitmentPromiseSchema).min(1, 'At least one promise is required'),
 });
 
 // Schema for creating a new commitment (structured input)
@@ -75,5 +67,5 @@ export type CreateCommitmentInput = z.infer<typeof createCommitmentSchema>;
 export type UpdateCommitmentInput = z.infer<typeof updateCommitmentSchema>;
 export type CommitmentQueryInput = z.infer<typeof commitmentQuerySchema>;
 export type ParsedCommitment = z.infer<typeof parsedCommitmentSchema>;
-export type Condition = z.infer<typeof conditionSchema>;
-export type Promise = z.infer<typeof promiseSchema>;
+export type CommitmentCondition = z.infer<typeof commitmentConditionSchema>;
+export type CommitmentPromise = z.infer<typeof commitmentPromiseSchema>;
