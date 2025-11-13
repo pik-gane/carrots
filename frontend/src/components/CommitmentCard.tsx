@@ -186,7 +186,7 @@ export function CommitmentCard({ commitment, currentUserId, groupMembers, onEdit
           {/* Show graphs for proportional promises */}
           {commitment.parsedCommitment.promises && commitment.parsedCommitment.promises.map((promise, idx) => (
             promise.proportionalAmount > 0 && promise.referenceAction ? (
-              <ProportionalCommitmentGraph key={idx} promise={promise} />
+              <ProportionalCommitmentGraph key={idx} promise={promise} groupMembers={groupMembers} />
             ) : null
           ))}
         </Box>

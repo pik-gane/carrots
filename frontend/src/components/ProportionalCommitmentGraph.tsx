@@ -1,20 +1,31 @@
 import { Box, Paper, Typography } from '@mui/material';
-import { CommitmentPromise } from '../types';
+import { CommitmentPromise, GroupMember } from '../types';
 
 interface ProportionalCommitmentGraphProps {
   promise: CommitmentPromise;
+  groupMembers?: GroupMember[];
   width?: number;
   height?: number;
 }
 
 export function ProportionalCommitmentGraph({ 
   promise, 
+  groupMembers,
   width = 300, 
   height = 200 
 }: ProportionalCommitmentGraphProps) {
   // Only show graph for proportional promises
   if (promise.proportionalAmount === 0 || !promise.referenceAction) {
     return null;
+  }
+
+  // Determine reference user name
+  let refUser = 'all users combined';
+  if (promise.referenceUserId && groupMembers) {
+    const refMember = groupMembers.find(m => m.userId === promise.referenceUserId);
+    refUser = refMember?.username || promise.referenceUserId;
+  } else if (promise.referenceUserId) {
+    refUser = promise.referenceUserId;
   }
 
   const padding = 40;
@@ -135,7 +146,7 @@ export function ProportionalCommitmentGraph({
             fontSize="12" 
             fill="#666"
           >
-            {promise.referenceAction} ({promise.unit})
+            {promise.referenceAction} by {refUser} ({promise.unit})
           </text>
           
           {/* Y-axis label */}
