@@ -277,10 +277,6 @@ async function main() {
       },
     },
   });
-        },
-      },
-    },
-  });
 
   console.log('Created commitments:', {
     anna_trash: commitment1.id,
