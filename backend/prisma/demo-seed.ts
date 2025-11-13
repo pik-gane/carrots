@@ -99,21 +99,21 @@ async function main() {
     },
   });
 
-  // 2. Bella: I'll do the dishes twice a day if Celia pays 30% of the rent
+  // 2. Bella: I'll do the dishes twice a day if Celia pays 40% of the rent
   const commitment2 = await prisma.commitment.create({
     data: {
       groupId: group.id,
       creatorId: bella.id,
       status: 'active',
       conditionType: 'single_user',
-      naturalLanguageText: 'I\'ll do the dishes twice a day if Celia pays 30% of the rent',
+      naturalLanguageText: 'I\'ll do the dishes twice a day if Celia pays 40% of the rent',
       parsedCommitment: {
         condition: {
           type: 'single_user',
           targetUserId: celia.id,
           targetUsername: 'Celia',
           action: 'rent payment',
-          minAmount: 30,
+          minAmount: 40,
           unit: 'percent',
         },
         promise: {
@@ -138,7 +138,31 @@ async function main() {
           type: 'aggregate',
           action: 'trash',
           minAmount: 1,
-          unit: 'times per 2 weeks',
+          unit: 'times every two weeks',
+        },
+        promise: {
+          action: 'rent payment',
+          minAmount: 30,
+          unit: 'percent',
+        },
+      },
+    },
+  });
+
+  // 3b. Celia: I'll pay 30% of rent if the trash is taken out at least every two weeks
+  const commitment3b = await prisma.commitment.create({
+    data: {
+      groupId: group.id,
+      creatorId: celia.id,
+      status: 'active',
+      conditionType: 'aggregate',
+      naturalLanguageText: 'I\'ll pay 30% of rent if the trash is taken out at least every two weeks',
+      parsedCommitment: {
+        condition: {
+          type: 'aggregate',
+          action: 'trash',
+          minAmount: 1/2,
+          unit: 'times per week',
         },
         promise: {
           action: 'rent payment',
@@ -170,6 +194,30 @@ async function main() {
     },
   });
 
+  // 2b. Bella: I don’t care which of you pays them as long as they’re paid…
+  const commitment2b = await prisma.commitment.create({
+    data: {
+      groupId: group.id,
+      creatorId: bella.id,
+      status: 'active',
+      conditionType: 'single_user',
+      naturalLanguageText: 'I don’t care which of you pays them as long as they’re paid… (clarification of: I\'ll do the dishes twice a day if Celia pays 40% of the rent)',
+      parsedCommitment: {
+        condition: {
+          type: 'aggregate',
+          action: 'rent payment',
+          minAmount: 40,
+          unit: 'percent',
+        },
+        promise: {
+          action: 'dishes',
+          minAmount: 2,
+          unit: 'times per day',
+        },
+      },
+    },
+  });
+
   // 5. The Cat: I'll reduce meowing by 1 dB for every 2 dB that Anna turns down AC/DC
   const commitment5 = await prisma.commitment.create({
     data: {
@@ -177,19 +225,19 @@ async function main() {
       creatorId: cat.id,
       status: 'active',
       conditionType: 'single_user',
-      naturalLanguageText: 'I\'ll reduce meowing by 1 dB for every 2 dB that Anna turns down AC/DC',
+      naturalLanguageText: 'I\'ll reduce meowing by 1 dB for every 2 dB that Anna turns down AC/DC (so if she reduces by 7 dB, I\'ll reduce by 3.5 dB)',
       parsedCommitment: {
         condition: {
           type: 'single_user',
           targetUserId: anna.id,
           targetUsername: 'Anna',
           action: 'AC/DC volume reduction',
-          minAmount: 2,
+          minAmount: 7,
           unit: 'dB',
         },
         promise: {
           action: 'meowing reduction',
-          minAmount: 1,
+          minAmount: 3.5,
           unit: 'dB',
         },
       },
@@ -226,8 +274,10 @@ async function main() {
     anna_trash: commitment1.id,
     bella_dishes: commitment2.id,
     celia_rent: commitment3.id,
+    celia_rent_b: commitment3b.id,
     cat_rent: commitment4.id,
     cat_meowing: commitment5.id,
+    bella_dishes_b: commitment2b.id,
     anna_acdc: commitment6.id,
   });
 
