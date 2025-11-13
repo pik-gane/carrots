@@ -81,7 +81,13 @@ export function CommitmentCard({ commitment, currentUserId, groupMembers, onEdit
           }
         }
         
+        // Include the promised action in the description
         let proportionalText = `${promise.proportionalAmount}× each ${promise.unit} of ${promise.referenceAction} by ${refUser}`;
+        
+        // Only add "of [action]" if the promised action differs from the reference action
+        if (promise.action !== promise.referenceAction) {
+          proportionalText += ` → ${promise.action}`;
+        }
         
         if (promise.thresholdAmount !== undefined && promise.thresholdAmount > 0) {
           proportionalText += ` above ${promise.thresholdAmount} ${promise.unit}`;
