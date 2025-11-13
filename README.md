@@ -163,7 +163,7 @@ This is based on the theoretical framework from: [Game-theoretic approaches to c
 - **Database**: PostgreSQL
 - **ORM**: Prisma
 - **Authentication**: JWT
-- **LLM Integration**: OpenAI GPT-4
+- **LLM Integration**: LangChain (supports OpenAI, Anthropic, Ollama/local models)
 
 ### Frontend
 - **Framework**: React 18+
