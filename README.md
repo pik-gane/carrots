@@ -296,11 +296,11 @@ See [IMPLEMENTATION_STRATEGY.md](./IMPLEMENTATION_STRATEGY.md) for detailed deve
 - [x] User authentication (backend API complete - see [TESTING_AUTH_API.md](./TESTING_AUTH_API.md))
 - [x] User profile and settings frontend (Phase 2.4 complete)
 - [x] Group management (Phase 3 complete - full CRUD with member management)
+- [x] Natural language commitment parsing (Phase 6 complete - see [docs/LLM_INTEGRATION.md](./docs/LLM_INTEGRATION.md))
 - [ ] Structured commitment creation
 - [ ] Liability calculation engine
 
 ### Future Enhancements
-- [ ] Natural language commitment parsing
 - [ ] Real-time updates via WebSockets
 - [ ] Mobile application
 - [ ] Advanced visualizations
