@@ -1,30 +1,32 @@
-import OpenAI from 'openai';
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { ParsedCommitment, NLPParseResponse } from '../types';
+import { LLMProviderFactory, LLMProviderType } from './llm';
+import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 
 const prisma = new PrismaClient();
 
 /**
  * LLMService - Natural language processing for commitment parsing
- * Uses OpenAI GPT-4 to parse natural language commitments into structured format
+ * 
+ * Uses LangChain to support multiple LLM providers (OpenAI, Anthropic, Ollama/local models)
+ * through a unified interface. This allows flexibility in choosing different providers
+ * based on requirements, cost, privacy, or availability.
  */
 export class LLMService {
-  private openai: OpenAI | null = null;
-  private isEnabled: boolean = false;
+  private chatModel: BaseChatModel | null = null;
+  private providerType: LLMProviderType;
 
   constructor() {
-    const apiKey = process.env.OPENAI_API_KEY;
+    // Create chat model using LangChain
+    this.providerType = LLMProviderFactory.getConfiguredProvider();
+    this.chatModel = LLMProviderFactory.createChatModel();
     
-    if (!apiKey || apiKey === 'sk-your-openai-api-key-here') {
-      logger.warn('OpenAI API key not configured. NLP features will be disabled.');
-      this.isEnabled = false;
+    if (!this.chatModel) {
+      logger.warn('No LLM provider configured. NLP features will be disabled.');
     } else {
-      this.openai = new OpenAI({
-        apiKey: apiKey,
-      });
-      this.isEnabled = true;
-      logger.info('LLM Service initialized successfully');
+      logger.info(`LLM Service initialized with ${this.providerType} provider`);
     }
   }
 
@@ -32,7 +34,21 @@ export class LLMService {
    * Check if LLM service is enabled
    */
   public isLLMEnabled(): boolean {
-    return this.isEnabled;
+    return this.chatModel !== null;
+  }
+
+  /**
+   * Get the name of the active provider
+   */
+  public getProviderName(): string {
+    return this.providerType || 'none';
+  }
+
+  /**
+   * Get list of available providers
+   */
+  public static getAvailableProviders(): LLMProviderType[] {
+    return LLMProviderFactory.getAvailableProviders();
   }
 
   /**
@@ -43,7 +59,7 @@ export class LLMService {
     groupId: string,
     userId: string
   ): Promise<NLPParseResponse> {
-    if (!this.isEnabled || !this.openai) {
+    if (!this.chatModel) {
       return {
         success: false,
         clarificationNeeded: 'LLM service is not configured. Please use structured commitment input.',
@@ -66,33 +82,24 @@ export class LLMService {
       // Build the prompt
       const prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username);
 
-      logger.info('Sending commitment to OpenAI for parsing', {
+      logger.info(`Sending commitment to ${this.providerType} for parsing`, {
         groupId,
         userId,
         textLength: naturalLanguageText.length,
+        provider: this.providerType,
       });
 
-      // Call OpenAI API
-      const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a commitment parser for the Carrots app. Parse natural language commitments into structured JSON format. Always respond with valid JSON.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.3, // Lower temperature for more consistent parsing
-        max_tokens: 1000,
-      });
+      // Call LLM using LangChain
+      const messages = [
+        new SystemMessage('You are a commitment parser for the Carrots app. Parse natural language commitments into structured JSON format. Always respond with valid JSON.'),
+        new HumanMessage(prompt),
+      ];
 
-      const responseText = completion.choices[0]?.message?.content;
+      const response = await this.chatModel.invoke(messages);
+      const responseText = response.content.toString();
 
       if (!responseText) {
-        logger.error('Empty response from OpenAI');
+        logger.error(`Empty response from ${this.providerType}`);
         return {
           success: false,
           clarificationNeeded: 'Failed to parse commitment. Please try rephrasing or use structured input.',
@@ -108,7 +115,7 @@ export class LLMService {
         const jsonText = jsonMatch ? jsonMatch[1] : responseText;
         parsedResponse = JSON.parse(jsonText.trim());
       } catch (parseError) {
-        logger.error('Failed to parse OpenAI response as JSON', { responseText, parseError });
+        logger.error(`Failed to parse ${this.providerType} response as JSON`, { responseText, parseError });
         return {
           success: false,
           clarificationNeeded: 'Failed to parse commitment. Please try rephrasing or use structured input.',
@@ -144,17 +151,25 @@ export class LLMService {
         };
       }
 
-      logger.info('Successfully parsed commitment', { groupId, userId });
+      logger.info('Successfully parsed commitment', { 
+        groupId, 
+        userId,
+        provider: this.providerType,
+      });
 
       return {
         success: true,
         parsed: validatedCommitment.commitment,
       };
     } catch (error: any) {
-      logger.error('LLM parsing error', { error: error.message, stack: error.stack });
+      logger.error('LLM parsing error', { 
+        error: error.message, 
+        stack: error.stack,
+        provider: this.providerType,
+      });
       
       // Handle rate limiting errors
-      if (error.status === 429) {
+      if (error.message?.includes('rate limit') || error.message?.includes('429')) {
         return {
           success: false,
           clarificationNeeded: 'API rate limit exceeded. Please try again in a moment or use structured input.',
@@ -162,10 +177,10 @@ export class LLMService {
       }
 
       // Handle other API errors
-      if (error.status) {
+      if (error.message) {
         return {
           success: false,
-          clarificationNeeded: `API error (${error.status}). Please try again or use structured input.`,
+          clarificationNeeded: `API error: ${error.message}. Please try again or use structured input.`,
         };
       }
 
@@ -177,7 +192,7 @@ export class LLMService {
   }
 
   /**
-   * Build the prompt for OpenAI
+   * Build the prompt for the LLM
    */
   private buildPrompt(naturalLanguageText: string, memberNames: string, currentUsername: string): string {
     return `You are parsing a conditional commitment for the Carrots app.

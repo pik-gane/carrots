@@ -4,20 +4,40 @@ This document describes the natural language processing (NLP) feature for parsin
 
 ## Overview
 
-The LLM integration allows users to create commitments by describing them in plain English, rather than using the structured form. The system uses OpenAI's GPT-4 to parse natural language text into the structured commitment format.
+The LLM integration allows users to create commitments by describing them in plain English, rather than using the structured form. The system uses **LangChain** to support multiple LLM providers including:
+
+- **OpenAI** (GPT-4, GPT-3.5-turbo, etc.) - Cloud-based
+- **Anthropic** (Claude models) - Cloud-based  
+- **Ollama** (Llama 2, Mistral, Phi, etc.) - Local, free, private
+
+This flexible architecture allows you to choose the provider that best fits your needs based on cost, privacy requirements, or availability.
 
 ## Architecture
 
 ### Backend Components
 
-#### 1. LLM Service (`backend/src/services/llmService.ts`)
-- Manages OpenAI API client initialization
+#### 1. LLM Provider System (`backend/src/services/llm/`)
+
+**LangChain Integration**
+- Uses industry-standard LangChain library for unified LLM interface
+- `LLMProviderFactory.ts` - Factory for creating provider-specific chat models
+- Supports OpenAI, Anthropic, and Ollama (local models) out of the box
+- Easy to extend with additional LangChain-supported providers
+
+**Key Features:**
+- Provider-agnostic API - swap providers without code changes
+- Consistent interface across all providers
+- Built-in error handling and retry logic
+- Support for both cloud and local models
+
+#### 2. LLM Service (`backend/src/services/llmService.ts`)
+- Manages LLM provider initialization via LangChain
 - Handles natural language parsing requests
 - Validates and transforms LLM outputs
 - Maps usernames to user IDs for group context
 - Implements error handling and rate limiting
 
-#### 2. Parse Endpoint (`POST /api/commitments/parse`)
+#### 3. Parse Endpoint (`POST /api/commitments/parse`)
 - Route: `POST /api/commitments/parse`
 - Input: `{ naturalLanguageText: string, groupId: string }`
 - Output: `{ success: boolean, parsed?: ParsedCommitment, clarificationNeeded?: string }`
@@ -41,29 +61,88 @@ The LLM integration allows users to create commitments by describing them in pla
 
 ### Prerequisites
 
-1. OpenAI API key with GPT-4 access
-2. Node.js 18+ and npm
+- Node.js 18+ and npm
+- For **OpenAI**: API key with GPT-4 access
+- For **Anthropic**: API key for Claude models
+- For **Ollama**: Ollama installed locally (free, no API key needed)
 
 ### Configuration
 
-1. **Backend Environment Variable**
-   
-   Add your OpenAI API key to `backend/.env`:
-   ```env
-   OPENAI_API_KEY=sk-your-actual-api-key-here
-   ```
+#### Option 1: OpenAI (Cloud)
 
-2. **Verify Installation**
-   
-   The `openai` package (v4.20.1) is already included in `backend/package.json`.
+Add configuration to `backend/.env`:
+```env
+LLM_PROVIDER="openai"
+LLM_MODEL="gpt-4"
+OPENAI_API_KEY="sk-your-actual-api-key-here"
+```
 
-3. **Test the Service**
-   
-   Run backend tests:
+#### Option 2: Anthropic Claude (Cloud)
+
+Add configuration to `backend/.env`:
+```env
+LLM_PROVIDER="anthropic"
+LLM_MODEL="claude-3-5-sonnet-20241022"
+ANTHROPIC_API_KEY="sk-ant-your-actual-key-here"
+```
+
+#### Option 3: Ollama (Local - Free & Private!)
+
+1. **Install Ollama** (if not already installed):
    ```bash
-   cd backend
-   npm test
+   # macOS/Linux
+   curl -fsSL https://ollama.com/install.sh | sh
+   
+   # Or download from https://ollama.com
    ```
+
+2. **Pull a model** (one-time):
+   ```bash
+   ollama pull llama2  # or mistral, phi, codellama, etc.
+   ```
+
+3. **Start Ollama** (runs locally on port 11434):
+   ```bash
+   ollama serve
+   ```
+
+4. **Configure backend** in `backend/.env`:
+   ```env
+   LLM_PROVIDER="ollama"
+   LLM_MODEL="llama2"
+   OLLAMA_BASE_URL="http://localhost:11434"
+   ```
+
+**Benefits of Ollama:**
+- ✅ **Completely free** - no API costs
+- ✅ **Private** - data never leaves your machine
+- ✅ **Fast** - no network latency
+- ✅ **Available offline** - works without internet
+- ✅ **Many models** - Llama 2, Mistral, Phi, CodeLlama, etc.
+
+### Switching Providers
+
+Simply change the `LLM_PROVIDER` environment variable and restart the backend:
+```bash
+# Switch to Ollama
+LLM_PROVIDER="ollama"
+
+# Switch to Anthropic
+LLM_PROVIDER="anthropic"
+
+# Switch to OpenAI
+LLM_PROVIDER="openai"
+```
+
+No code changes required!
+
+### Verify Installation
+
+Run backend tests:
+```bash
+cd backend
+npm test
+```
 
 ## Usage
 
