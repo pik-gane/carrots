@@ -123,10 +123,7 @@ export function CreateCommitmentDialog({
 
     for (let i = 0; i < conditions.length; i++) {
       const condition = conditions[i];
-      if (!condition.targetUserId) {
-        setValidationError(`Condition ${i + 1}: Target user is required`);
-        return;
-      }
+      // targetUserId is optional - if omitted, it's an aggregate condition
       if (!condition.action.trim()) {
         setValidationError(`Condition ${i + 1}: Action is required`);
         return;
@@ -240,12 +237,15 @@ export function CreateCommitmentDialog({
 
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <FormControl fullWidth>
-                  <InputLabel>Target User</InputLabel>
+                  <InputLabel>Target User (or Aggregate)</InputLabel>
                   <Select
-                    value={condition.targetUserId}
-                    onChange={(e) => updateCondition(index, 'targetUserId', e.target.value)}
-                    label="Target User"
+                    value={condition.targetUserId || ''}
+                    onChange={(e) => updateCondition(index, 'targetUserId', e.target.value || undefined)}
+                    label="Target User (or Aggregate)"
                   >
+                    <MenuItem value="">
+                      <em>Aggregate (all users combined)</em>
+                    </MenuItem>
                     {members.map((member) => (
                       <MenuItem key={member.userId} value={member.userId}>
                         {member.username} ({member.email})

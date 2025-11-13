@@ -30,17 +30,25 @@ export function CommitmentCard({ commitment, currentUserId, groupMembers, onEdit
     }
     
     return conditions.map((condition, idx) => {
-      // Try to get username from groupMembers
-      let targetUsername = 'Unknown user';
-      if (condition.targetUserId && groupMembers) {
-        const targetMember = groupMembers.find(m => m.userId === condition.targetUserId);
-        targetUsername = targetMember?.username || condition.targetUserId;
+      let conditionText = '';
+      
+      if (condition.targetUserId) {
+        // Single-user condition
+        let targetUsername = 'Unknown user';
+        if (groupMembers) {
+          const targetMember = groupMembers.find(m => m.userId === condition.targetUserId);
+          targetUsername = targetMember?.username || condition.targetUserId;
+        }
+        conditionText = `${targetUsername} does at least ${condition.minAmount} ${condition.unit} of ${condition.action}`;
+      } else {
+        // Aggregate condition
+        conditionText = `All users combined do at least ${condition.minAmount} ${condition.unit} of ${condition.action}`;
       }
       
       return (
         <Typography key={idx} variant="body2" sx={{ ml: idx > 0 ? 2 : 0 }}>
           {idx > 0 && <strong>AND </strong>}
-          {targetUsername} does at least {condition.minAmount} {condition.unit} of {condition.action}
+          {conditionText}
         </Typography>
       );
     });
@@ -63,10 +71,14 @@ export function CommitmentCard({ commitment, currentUserId, groupMembers, onEdit
       
       // Proportional amount
       if (promise.proportionalAmount > 0 && promise.referenceAction) {
-        let refUser = 'others';
-        if (promise.referenceUserId && groupMembers) {
-          const refMember = groupMembers.find(m => m.userId === promise.referenceUserId);
-          refUser = refMember?.username || promise.referenceUserId;
+        let refUser = 'all users combined';
+        if (promise.referenceUserId) {
+          if (groupMembers) {
+            const refMember = groupMembers.find(m => m.userId === promise.referenceUserId);
+            refUser = refMember?.username || promise.referenceUserId;
+          } else {
+            refUser = promise.referenceUserId;
+          }
         }
         
         let proportionalText = `${promise.proportionalAmount}× each ${promise.unit} of ${promise.referenceAction} by ${refUser}`;

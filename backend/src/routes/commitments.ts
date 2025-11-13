@@ -54,22 +54,24 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
       return;
     }
 
-    // Verify all condition target users are members
+    // Verify all condition target users are members (skip for aggregate conditions)
     for (const condition of parsedCommitment.conditions) {
-      const targetMembership = await prisma.groupMembership.findUnique({
-        where: {
-          groupId_userId: {
-            groupId,
-            userId: condition.targetUserId,
+      if (condition.targetUserId) {
+        const targetMembership = await prisma.groupMembership.findUnique({
+          where: {
+            groupId_userId: {
+              groupId,
+              userId: condition.targetUserId,
+            },
           },
-        },
-      });
-
-      if (!targetMembership) {
-        res.status(400).json({
-          error: `Target user ${condition.targetUserId} is not a member of this group`,
         });
-        return;
+
+        if (!targetMembership) {
+          res.status(400).json({
+            error: `Target user ${condition.targetUserId} is not a member of this group`,
+          });
+          return;
+        }
       }
     }
 
@@ -436,23 +438,25 @@ router.put('/:id', apiRateLimiter, authenticate, async (req: Request, res: Respo
       return;
     }
 
-    // If parsedCommitment is provided, verify all condition target users are members
+    // If parsedCommitment is provided, verify all condition target users are members (skip for aggregate conditions)
     if (parsedCommitment) {
       for (const condition of parsedCommitment.conditions) {
-        const targetMembership = await prisma.groupMembership.findUnique({
-          where: {
-            groupId_userId: {
-              groupId: commitment.groupId,
-              userId: condition.targetUserId,
+        if (condition.targetUserId) {
+          const targetMembership = await prisma.groupMembership.findUnique({
+            where: {
+              groupId_userId: {
+                groupId: commitment.groupId,
+                userId: condition.targetUserId,
+              },
             },
-          },
-        });
-
-        if (!targetMembership) {
-          res.status(400).json({
-            error: `Target user ${condition.targetUserId} is not a member of this group`,
           });
-          return;
+
+          if (!targetMembership) {
+            res.status(400).json({
+              error: `Target user ${condition.targetUserId} is not a member of this group`,
+            });
+            return;
+          }
         }
       }
 

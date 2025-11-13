@@ -1,19 +1,21 @@
 import { z } from 'zod';
 
 // Schema for individual condition in a conjunction
+// targetUserId is optional - if omitted/null, this is an aggregate condition on all users
 export const commitmentConditionSchema = z.object({
-  targetUserId: z.string().uuid('Target user ID must be a valid UUID'),
+  targetUserId: z.string().uuid('Target user ID must be a valid UUID').optional(),
   action: z.string().min(1, 'Action is required').max(100, 'Action must be at most 100 characters'),
   minAmount: z.number().nonnegative('Minimum amount must be non-negative'),
   unit: z.string().min(1, 'Unit is required').max(50, 'Unit must be at most 50 characters'),
 });
 
 // Schema for individual promise (can be base or proportional with cap)
+// referenceUserId is optional - if omitted/null, proportional matching is on aggregate of all users
 export const commitmentPromiseSchema = z.object({
   action: z.string().min(1, 'Action is required').max(100, 'Action must be at most 100 characters'),
   baseAmount: z.number().nonnegative('Base amount must be non-negative'),
   proportionalAmount: z.number().nonnegative('Proportional amount must be non-negative'),
-  referenceUserId: z.string().uuid('Reference user ID must be a valid UUID').optional(),
+  referenceUserId: z.string().uuid('Reference user ID must be a valid UUID').optional().nullable(),
   referenceAction: z.string().min(1).max(100).optional(),
   thresholdAmount: z.number().nonnegative('Threshold amount must be non-negative').optional(),
   maxAmount: z.number().positive('Max amount must be positive').optional(),
