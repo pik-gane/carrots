@@ -9,6 +9,7 @@ import {
 } from '@mui/material';
 import { Edit, Delete, CheckCircle, Cancel } from '@mui/icons-material';
 import { Commitment, GroupMember } from '../types';
+import { ProportionalCommitmentGraph } from './ProportionalCommitmentGraph';
 
 interface CommitmentCardProps {
   commitment: Commitment;
@@ -62,48 +63,46 @@ export function CommitmentCard({ commitment, currentUserId, groupMembers, onEdit
     }
     
     return promises.map((promise, idx) => {
-      const parts: string[] = [];
+      let promiseText = '';
       
-      // Base amount
-      if (promise.baseAmount > 0) {
-        parts.push(`${promise.baseAmount} ${promise.unit} of ${promise.action}`);
+      // Determine reference user
+      let refUser = 'all users combined';
+      if (promise.referenceUserId) {
+        if (groupMembers) {
+          const refMember = groupMembers.find(m => m.userId === promise.referenceUserId);
+          refUser = refMember?.username || promise.referenceUserId;
+        } else {
+          refUser = promise.referenceUserId;
+        }
       }
       
-      // Proportional amount
+      // Build promise text based on pattern
       if (promise.proportionalAmount > 0 && promise.referenceAction) {
-        let refUser = 'all users combined';
-        if (promise.referenceUserId) {
-          if (groupMembers) {
-            const refMember = groupMembers.find(m => m.userId === promise.referenceUserId);
-            refUser = refMember?.username || promise.referenceUserId;
-          } else {
-            refUser = promise.referenceUserId;
-          }
+        // Has proportional component
+        if (promise.baseAmount > 0 && promise.thresholdAmount !== undefined && promise.thresholdAmount > 0) {
+          // Pattern: "2 dB of meowing reduction plus another 0.5 dB for each dB of AC/DC volume reduction by Anna that exceeds 2 dB, but at most at 3.5 dB in total"
+          promiseText = `${promise.baseAmount} ${promise.unit} of ${promise.action} plus another ${promise.proportionalAmount} ${promise.unit} for each ${promise.unit} of ${promise.referenceAction} by ${refUser} that exceeds ${promise.thresholdAmount} ${promise.unit}`;
+        } else if (promise.baseAmount > 0) {
+          // Base + proportional without threshold
+          promiseText = `${promise.baseAmount} ${promise.unit} of ${promise.action} plus another ${promise.proportionalAmount} ${promise.unit} for each ${promise.unit} of ${promise.referenceAction} by ${refUser}`;
+        } else {
+          // Pattern: "0.5 dB of meowing reduction for each dB of AC/DC volume reduction by Anna, but at most at 3.5 dB in total"
+          promiseText = `${promise.proportionalAmount} ${promise.unit} of ${promise.action} for each ${promise.unit} of ${promise.referenceAction} by ${refUser}`;
         }
         
-        // Include the promised action in the description
-        let proportionalText = `${promise.proportionalAmount}× each ${promise.unit} of ${promise.referenceAction} by ${refUser}`;
-        
-        // Only add "of [action]" if the promised action differs from the reference action
-        if (promise.action !== promise.referenceAction) {
-          proportionalText += ` → ${promise.action}`;
-        }
-        
-        if (promise.thresholdAmount !== undefined && promise.thresholdAmount > 0) {
-          proportionalText += ` above ${promise.thresholdAmount} ${promise.unit}`;
-        }
-        
+        // Add max amount cap if present
         if (promise.maxAmount !== undefined) {
-          proportionalText += ` (capped at ${promise.maxAmount} ${promise.unit})`;
+          promiseText += `, but at most ${promise.maxAmount} ${promise.unit} in total`;
         }
-        
-        parts.push(proportionalText);
+      } else if (promise.baseAmount > 0) {
+        // Only base amount, no proportional component
+        promiseText = `${promise.baseAmount} ${promise.unit} of ${promise.action}`;
       }
       
       return (
         <Typography key={idx} variant="body2" color="primary.main" sx={{ ml: idx > 0 ? 2 : 0 }}>
           {idx > 0 && <strong>PLUS </strong>}
-          {parts.join(' + ')}
+          {promiseText}
         </Typography>
       );
     });
@@ -184,6 +183,12 @@ export function CommitmentCard({ commitment, currentUserId, groupMembers, onEdit
           <Box sx={{ ml: 1 }}>
             {formatPromises()}
           </Box>
+          {/* Show graphs for proportional promises */}
+          {commitment.parsedCommitment.promises && commitment.parsedCommitment.promises.map((promise, idx) => (
+            promise.proportionalAmount > 0 && promise.referenceAction ? (
+              <ProportionalCommitmentGraph key={idx} promise={promise} />
+            ) : null
+          ))}
         </Box>
 
         {commitment.warnings && commitment.warnings.length > 0 && (
