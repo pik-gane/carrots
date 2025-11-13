@@ -22,32 +22,91 @@ export function CommitmentCard({ commitment, currentUserId, groupMembers, onEdit
   const isCreator = commitment.creatorId === currentUserId;
   const isActive = commitment.status === 'active';
 
-  const formatCondition = () => {
-    const { condition } = commitment.parsedCommitment;
-    if (condition.type === 'unconditional') {
-      return 'Unconditionally';
-    } else if (condition.type === 'single_user') {
-      // Try to get username from condition, otherwise look it up from groupMembers
-      let targetUsername = condition.targetUsername;
-      if (!targetUsername && condition.targetUserId && groupMembers) {
-        const targetMember = groupMembers.find(m => m.userId === condition.targetUserId);
-        targetUsername = targetMember?.username;
+  const formatConditions = () => {
+    const { conditions } = commitment.parsedCommitment;
+    
+    if (!conditions || conditions.length === 0) {
+      return 'No conditions';
+    }
+    
+    return conditions.map((condition, idx) => {
+      let conditionText = '';
+      
+      if (condition.targetUserId) {
+        // Single-user condition
+        let targetUsername = 'Unknown user';
+        if (groupMembers) {
+          const targetMember = groupMembers.find(m => m.userId === condition.targetUserId);
+          targetUsername = targetMember?.username || condition.targetUserId;
+        }
+        conditionText = `${targetUsername} does at least ${condition.minAmount} ${condition.unit} of ${condition.action}`;
+      } else {
+        // Aggregate condition
+        conditionText = `All users combined do at least ${condition.minAmount} ${condition.unit} of ${condition.action}`;
       }
       
-      if (targetUsername) {
-        return `If ${targetUsername} does at least ${condition.minAmount} ${condition.unit} of ${condition.action}`;
-      }
-      // Fallback if we still can't find the username
-      return `If user does at least ${condition.minAmount} ${condition.unit} of ${condition.action}`;
-    } else if (condition.type === 'aggregate') {
-      return `If others do at least ${condition.minAmount} ${condition.unit} of ${condition.action} combined`;
-    }
-    return 'Unknown condition';
+      return (
+        <Typography key={idx} variant="body2" sx={{ ml: idx > 0 ? 2 : 0 }}>
+          {idx > 0 && <strong>AND </strong>}
+          {conditionText}
+        </Typography>
+      );
+    });
   };
 
-  const formatPromise = () => {
-    const { promise } = commitment.parsedCommitment;
-    return `I will do at least ${promise.minAmount} ${promise.unit} of ${promise.action}`;
+  const formatPromises = () => {
+    const { promises } = commitment.parsedCommitment;
+    
+    if (!promises || promises.length === 0) {
+      return 'No promises';
+    }
+    
+    return promises.map((promise, idx) => {
+      const parts: string[] = [];
+      
+      // Base amount
+      if (promise.baseAmount > 0) {
+        parts.push(`${promise.baseAmount} ${promise.unit} of ${promise.action}`);
+      }
+      
+      // Proportional amount
+      if (promise.proportionalAmount > 0 && promise.referenceAction) {
+        let refUser = 'all users combined';
+        if (promise.referenceUserId) {
+          if (groupMembers) {
+            const refMember = groupMembers.find(m => m.userId === promise.referenceUserId);
+            refUser = refMember?.username || promise.referenceUserId;
+          } else {
+            refUser = promise.referenceUserId;
+          }
+        }
+        
+        // Include the promised action in the description
+        let proportionalText = `${promise.proportionalAmount}× each ${promise.unit} of ${promise.referenceAction} by ${refUser}`;
+        
+        // Only add "of [action]" if the promised action differs from the reference action
+        if (promise.action !== promise.referenceAction) {
+          proportionalText += ` → ${promise.action}`;
+        }
+        
+        if (promise.thresholdAmount !== undefined && promise.thresholdAmount > 0) {
+          proportionalText += ` above ${promise.thresholdAmount} ${promise.unit}`;
+        }
+        
+        if (promise.maxAmount !== undefined) {
+          proportionalText += ` (capped at ${promise.maxAmount} ${promise.unit})`;
+        }
+        
+        parts.push(proportionalText);
+      }
+      
+      return (
+        <Typography key={idx} variant="body2" color="primary.main" sx={{ ml: idx > 0 ? 2 : 0 }}>
+          {idx > 0 && <strong>PLUS </strong>}
+          {parts.join(' + ')}
+        </Typography>
+      );
+    });
   };
 
   return (
@@ -111,20 +170,20 @@ export function CommitmentCard({ commitment, currentUserId, groupMembers, onEdit
 
         <Box sx={{ mb: 1 }}>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            <strong>Condition:</strong>
+            <strong>Conditions (all must be met):</strong>
           </Typography>
-          <Typography variant="body1">
-            {formatCondition()}
-          </Typography>
+          <Box sx={{ ml: 1 }}>
+            {formatConditions()}
+          </Box>
         </Box>
 
         <Box sx={{ mb: 1 }}>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            <strong>Promise:</strong>
+            <strong>Promises (I will do):</strong>
           </Typography>
-          <Typography variant="body1" color="primary.main">
-            {formatPromise()}
-          </Typography>
+          <Box sx={{ ml: 1 }}>
+            {formatPromises()}
+          </Box>
         </Box>
 
         {commitment.warnings && commitment.warnings.length > 0 && (

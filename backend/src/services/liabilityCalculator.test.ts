@@ -183,5 +183,109 @@ describe('LiabilityCalculator', () => {
       // So user-1 has no liability
       expect(result).toEqual([]);
     });
+
+    it('should handle proportional matching promises', async () => {
+      const groupId = 'group-1';
+      const aliceId = 'user-alice';
+      const bobId = 'user-bob';
+      const charlieId = 'user-charlie';
+
+      // Alice's commitment: Unconditional 10 hours
+      // Bob's commitment: If Alice does >= 5 hours, I'll do 2 hours base + 0.5x (Alice - 5) up to 5 hours max
+      // Charlie's commitment: If Alice does >= 5 hours, I'll do 3 hours base
+      prisma.commitment.findMany.mockResolvedValue([
+        {
+          id: 'commitment-alice',
+          groupId,
+          creatorId: aliceId,
+          status: 'active',
+          conditionType: 'single_user',
+          parsedCommitment: {
+            conditions: [{
+              targetUserId: aliceId,
+              action: 'anything',
+              minAmount: 0,
+              unit: 'hours',
+            }],
+            promises: [{
+              action: 'work',
+              baseAmount: 10,
+              proportionalAmount: 0,
+              unit: 'hours',
+            }],
+          },
+          creator: { id: aliceId, username: 'alice' },
+        },
+        {
+          id: 'commitment-bob',
+          groupId,
+          creatorId: bobId,
+          status: 'active',
+          conditionType: 'single_user',
+          parsedCommitment: {
+            conditions: [{
+              targetUserId: aliceId,
+              action: 'work',
+              minAmount: 5,
+              unit: 'hours',
+            }],
+            promises: [{
+              action: 'work',
+              baseAmount: 2,
+              proportionalAmount: 0.5,
+              referenceUserId: aliceId,
+              referenceAction: 'work',
+              thresholdAmount: 5,
+              maxAmount: 5,
+              unit: 'hours',
+            }],
+          },
+          creator: { id: bobId, username: 'bob' },
+        },
+        {
+          id: 'commitment-charlie',
+          groupId,
+          creatorId: charlieId,
+          status: 'active',
+          conditionType: 'single_user',
+          parsedCommitment: {
+            conditions: [{
+              targetUserId: aliceId,
+              action: 'work',
+              minAmount: 5,
+              unit: 'hours',
+            }],
+            promises: [{
+              action: 'work',
+              baseAmount: 3,
+              proportionalAmount: 0,
+              unit: 'hours',
+            }],
+          },
+          creator: { id: charlieId, username: 'charlie' },
+        },
+      ]);
+
+      prisma.groupMembership.findMany.mockResolvedValue([
+        { userId: aliceId },
+        { userId: bobId },
+        { userId: charlieId },
+      ]);
+
+      const result = await liabilityCalculator.calculateGroupLiabilities(groupId);
+
+      // Alice commits 10 hours unconditionally
+      // Bob sees Alice at 10 hours, so: 2 + min(5, 0.5 * (10 - 5)) = 2 + min(5, 2.5) = 4.5 hours
+      // Charlie sees Alice at 10 hours >= 5, so: 3 hours
+      expect(result).toHaveLength(3);
+      
+      const aliceLiability = result.find(r => r.userId === aliceId && r.action === 'work');
+      const bobLiability = result.find(r => r.userId === bobId && r.action === 'work');
+      const charlieLiability = result.find(r => r.userId === charlieId && r.action === 'work');
+      
+      expect(aliceLiability?.amount).toBe(10);
+      expect(bobLiability?.amount).toBe(4.5);
+      expect(charlieLiability?.amount).toBe(3);
+    });
   });
 });

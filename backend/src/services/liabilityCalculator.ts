@@ -116,13 +116,24 @@ export class LiabilityCalculator {
   ): boolean {
     // All conditions must be satisfied (conjunction)
     for (const condition of conditions) {
-      const userId = condition.targetUserId;
       const action = condition.action;
       const minAmount = condition.minAmount;
 
-      const userLiability = currentLiabilities[userId]?.[action]?.amount || 0;
-      if (userLiability < minAmount) {
-        return false;
+      if (condition.targetUserId) {
+        // Single-user condition: check specific user's liability
+        const userLiability = currentLiabilities[condition.targetUserId]?.[action]?.amount || 0;
+        if (userLiability < minAmount) {
+          return false;
+        }
+      } else {
+        // Aggregate condition: sum all users' liabilities for this action
+        let aggregateAmount = 0;
+        for (const userId in currentLiabilities) {
+          aggregateAmount += currentLiabilities[userId]?.[action]?.amount || 0;
+        }
+        if (aggregateAmount < minAmount) {
+          return false;
+        }
       }
     }
 
@@ -133,6 +144,7 @@ export class LiabilityCalculator {
    * Calculate the total promised amount for a user-action pair given promises
    * Handles base amounts and proportional (affine linear) contributions with caps
    * Formula: c_i(Yi) = W0 + Σ_k min(Wk, Dk × max(0, L_Bk(Zk) - Ok))
+   * where L_Bk can be either a specific user's liability or the aggregate of all users
    */
   private calculatePromisedAmount(
     promises: ParsedCommitment['promises'],
@@ -146,10 +158,21 @@ export class LiabilityCalculator {
         // Add base amount (W0)
         totalAmount += promise.baseAmount;
 
-        // Add proportional amount based on reference user's excess
+        // Add proportional amount based on reference user/aggregate excess
         // Dk × max(0, L_Bk(Zk) - Ok), capped at Wk
-        if (promise.proportionalAmount > 0 && promise.referenceUserId && promise.referenceAction) {
-          const referenceAmount = currentLiabilities[promise.referenceUserId]?.[promise.referenceAction]?.amount || 0;
+        if (promise.proportionalAmount > 0 && promise.referenceAction) {
+          let referenceAmount = 0;
+          
+          if (promise.referenceUserId) {
+            // Single-user proportional matching: match specific user's action
+            referenceAmount = currentLiabilities[promise.referenceUserId]?.[promise.referenceAction]?.amount || 0;
+          } else {
+            // Aggregate proportional matching: match sum of all users' actions
+            for (const userId in currentLiabilities) {
+              referenceAmount += currentLiabilities[userId]?.[promise.referenceAction]?.amount || 0;
+            }
+          }
+          
           const threshold = promise.thresholdAmount || 0;
           const excess = Math.max(0, referenceAmount - threshold);
           const proportionalContribution = promise.proportionalAmount * excess;
