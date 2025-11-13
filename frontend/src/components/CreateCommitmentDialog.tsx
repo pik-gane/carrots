@@ -15,16 +15,20 @@ import {
   Typography,
   FormControl,
   IconButton,
+  CircularProgress,
+  Paper,
 } from '@mui/material';
-import { Add, Delete } from '@mui/icons-material';
+import { Add, Delete, AutoAwesome } from '@mui/icons-material';
 import { ParsedCommitment, GroupMember, Commitment, CommitmentCondition, CommitmentPromise } from '../types';
 import { InteractiveProportionalGraph } from './InteractiveProportionalGraph';
+import { commitmentsApi } from '../api/commitments';
 
 interface CreateCommitmentDialogProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (commitment: ParsedCommitment, naturalLanguageText?: string) => void;
   members: GroupMember[];
+  groupId: string;  // Add groupId for parsing
   loading?: boolean;
   error?: string | null;
   initialCommitment?: Commitment;  // For edit mode
@@ -35,6 +39,7 @@ export function CreateCommitmentDialog({
   onClose,
   onSubmit,
   members,
+  groupId,
   loading = false,
   error = null,
   initialCommitment,
@@ -44,6 +49,9 @@ export function CreateCommitmentDialog({
   const [promises, setPromises] = useState<CommitmentPromise[]>([]);
   const [naturalLanguageText, setNaturalLanguageText] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [parseSuccess, setParseSuccess] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -113,6 +121,53 @@ export function CreateCommitmentDialog({
     const newPromises = [...promises];
     newPromises[index] = { ...newPromises[index], [field]: value };
     setPromises(newPromises);
+  };
+
+  const handleParseNaturalLanguage = async () => {
+    if (!naturalLanguageText.trim()) {
+      setParseError('Please enter some text to parse');
+      return;
+    }
+
+    if (naturalLanguageText.length < 10) {
+      setParseError('Please provide more details (at least 10 characters)');
+      return;
+    }
+
+    setParsing(true);
+    setParseError(null);
+    setParseSuccess(false);
+    setValidationError(null);
+
+    try {
+      const result = await commitmentsApi.parse({
+        naturalLanguageText: naturalLanguageText.trim(),
+        groupId,
+      });
+
+      if (!result.success) {
+        setParseError(result.clarificationNeeded || 'Failed to parse commitment');
+        setParsing(false);
+        return;
+      }
+
+      if (result.parsed) {
+        // Successfully parsed - populate the form
+        setConditions(result.parsed.conditions);
+        setPromises(result.parsed.promises);
+        setParseSuccess(true);
+        setParseError(null);
+      }
+    } catch (err: any) {
+      console.error('Parse error:', err);
+      if (err.response?.status === 503) {
+        setParseError('Natural language parsing is not available. Please use the structured form below.');
+      } else {
+        setParseError(err.response?.data?.message || 'Failed to parse commitment. Please try again or use the structured form.');
+      }
+    } finally {
+      setParsing(false);
+    }
   };
 
   const handleSubmit = () => {
@@ -202,18 +257,52 @@ export function CreateCommitmentDialog({
             </Alert>
           )}
 
-          <TextField
-            label="Natural Language (Optional)"
-            value={naturalLanguageText}
-            onChange={(e) => setNaturalLanguageText(e.target.value)}
-            multiline
-            rows={2}
-            placeholder='e.g., "If Alice completes at least 5 hours of work, I will complete at least 3 hours of work"'
-            fullWidth
-            helperText="You can describe your commitment in plain English. This is for reference only."
-          />
+          {parseError && (
+            <Alert severity="warning" onClose={() => setParseError(null)}>
+              {parseError}
+            </Alert>
+          )}
 
-          <Divider />
+          {parseSuccess && (
+            <Alert severity="success" onClose={() => setParseSuccess(false)}>
+              Successfully parsed! Review the generated conditions and promises below, then click Create.
+            </Alert>
+          )}
+
+          <Paper elevation={1} sx={{ p: 2, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+              ✨ Try Natural Language (Beta)
+            </Typography>
+            <TextField
+              label="Describe your commitment"
+              value={naturalLanguageText}
+              onChange={(e) => {
+                setNaturalLanguageText(e.target.value);
+                setParseSuccess(false);
+              }}
+              multiline
+              rows={3}
+              placeholder='e.g., "If Alice completes at least 5 hours of coding, I will do 3 hours plus 50% of any excess she does, up to 8 hours total"'
+              fullWidth
+              disabled={parsing}
+              sx={{ bgcolor: 'background.paper', mb: 1 }}
+            />
+            <Button
+              variant="contained"
+              startIcon={parsing ? <CircularProgress size={20} /> : <AutoAwesome />}
+              onClick={handleParseNaturalLanguage}
+              disabled={parsing || !naturalLanguageText.trim()}
+              fullWidth
+              color="secondary"
+            >
+              {parsing ? 'Parsing...' : 'Parse with AI'}
+            </Button>
+            <Typography variant="caption" sx={{ mt: 1, display: 'block', opacity: 0.9 }}>
+              Let AI help you create a commitment from plain English. You can review and adjust the result below.
+            </Typography>
+          </Paper>
+
+          <Divider>OR USE STRUCTURED FORM</Divider>
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
             <Typography variant="h6">Conditions (all must be met)</Typography>
