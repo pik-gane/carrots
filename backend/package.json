@@ -16,7 +16,8 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:reset": "prisma migrate reset",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:demo-seed": "tsx prisma/demo-seed.ts"
   },
   "keywords": [
     "conditional-commitments",

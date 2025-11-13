@@ -22,11 +22,18 @@ import {
   DialogContentText,
   DialogActions,
   TextField,
+  Tabs,
+  Tab,
 } from '@mui/material';
-import { ArrowBack, Edit, Delete, ExitToApp, Person } from '@mui/icons-material';
+import { ArrowBack, Edit, Delete, ExitToApp, Person, Add } from '@mui/icons-material';
 import { useAuth } from '../hooks/useAuth';
 import { groupsApi } from '../api/groups';
-import { Group } from '../types';
+import { commitmentsApi } from '../api/commitments';
+import { liabilitiesApi } from '../api/liabilities';
+import { Group, Commitment, Liability, ParsedCommitment } from '../types';
+import { CommitmentCard } from '../components/CommitmentCard';
+import { CreateCommitmentDialog } from '../components/CreateCommitmentDialog';
+import { LiabilityDisplay } from '../components/LiabilityDisplay';
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -41,6 +48,21 @@ export default function GroupDetailPage() {
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  
+  // Commitments state
+  const [activeTab, setActiveTab] = useState(0);
+  const [commitments, setCommitments] = useState<Commitment[]>([]);
+  const [commitmentsLoading, setCommitmentsLoading] = useState(false);
+  const [createCommitmentOpen, setCreateCommitmentOpen] = useState(false);
+  const [commitmentError, setCommitmentError] = useState<string | null>(null);
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
+  const [commitmentToRevoke, setCommitmentToRevoke] = useState<Commitment | null>(null);
+  const [commitmentToEdit, setCommitmentToEdit] = useState<Commitment | null>(null);
+  
+  // Liabilities state
+  const [liabilities, setLiabilities] = useState<Liability[]>([]);
+  const [liabilitiesLoading, setLiabilitiesLoading] = useState(false);
+  const [calculatedAt, setCalculatedAt] = useState<string | null>(null);
 
   const loadGroup = async () => {
     if (!id) return;
@@ -51,6 +73,8 @@ export default function GroupDetailPage() {
       setGroup(data);
       setEditName(data.name);
       setEditDescription(data.description || '');
+      // Load commitments and liabilities after loading group
+      loadCommitments();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load group');
     } finally {
@@ -58,10 +82,47 @@ export default function GroupDetailPage() {
     }
   };
 
+  const loadCommitments = async () => {
+    if (!id) return;
+    try {
+      setCommitmentsLoading(true);
+      setCommitmentError(null);
+      const data = await commitmentsApi.list({ groupId: id });
+      setCommitments(data.commitments);
+    } catch (err: any) {
+      setCommitmentError(err.response?.data?.message || 'Failed to load commitments');
+    } finally {
+      setCommitmentsLoading(false);
+    }
+  };
+
+  const loadLiabilities = async () => {
+    if (!id) return;
+    try {
+      setLiabilitiesLoading(true);
+      const data = await liabilitiesApi.getGroupLiabilities(id);
+      setLiabilities(data.liabilities);
+      setCalculatedAt(data.calculatedAt);
+    } catch (err: any) {
+      // Liabilities may not exist yet, that's ok
+      setLiabilities([]);
+    } finally {
+      setLiabilitiesLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadGroup();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    // Load liabilities when switching to liabilities tab
+    if (activeTab === 2 && id) {
+      loadLiabilities();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, id]);
 
   const handleLogout = async () => {
     await logout();
@@ -111,6 +172,68 @@ export default function GroupDetailPage() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleCreateCommitment = async (parsedCommitment: ParsedCommitment, naturalLanguageText?: string) => {
+    if (!id) return;
+    setActionLoading(true);
+    setCommitmentError(null);
+    try {
+      if (commitmentToEdit) {
+        // Edit mode
+        await commitmentsApi.update(commitmentToEdit.id, {
+          parsedCommitment,
+          naturalLanguageText,
+        });
+        setCommitmentToEdit(null);
+      } else {
+        // Create mode
+        await commitmentsApi.create({
+          groupId: id,
+          parsedCommitment,
+          naturalLanguageText,
+        });
+      }
+      setCreateCommitmentOpen(false);
+      loadCommitments();
+      // Refresh liabilities after creating a commitment
+      if (activeTab === 2) {
+        loadLiabilities();
+      }
+    } catch (err: any) {
+      setCommitmentError(err.response?.data?.message || `Failed to ${commitmentToEdit ? 'update' : 'create'} commitment`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRevokeCommitment = async () => {
+    if (!commitmentToRevoke) return;
+    setActionLoading(true);
+    try {
+      await commitmentsApi.revoke(commitmentToRevoke.id);
+      setRevokeDialogOpen(false);
+      setCommitmentToRevoke(null);
+      loadCommitments();
+      // Refresh liabilities after revoking a commitment
+      if (activeTab === 2) {
+        loadLiabilities();
+      }
+    } catch (err: any) {
+      setCommitmentError(err.response?.data?.message || 'Failed to revoke commitment');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const openRevokeDialog = (commitment: Commitment) => {
+    setCommitmentToRevoke(commitment);
+    setRevokeDialogOpen(true);
+  };
+
+  const openEditDialog = (commitment: Commitment) => {
+    setCommitmentToEdit(commitment);
+    setCreateCommitmentOpen(true);
   };
 
   const isCreator = user?.id === group?.creatorId;
@@ -204,25 +327,97 @@ export default function GroupDetailPage() {
               </Typography>
             </Paper>
 
-            <Paper elevation={3} sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Members ({group.memberships?.length || 0})
-              </Typography>
-              <List>
-                {group.memberships?.map((membership) => (
-                  <ListItem key={membership.id}>
-                    <ListItemAvatar>
-                      <Avatar>
-                        <Person />
-                      </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={membership.user.username}
-                      secondary={`${membership.user.email} • ${membership.role}`}
+            {/* Tabs for Members, Commitments, and Liabilities */}
+            <Paper elevation={3} sx={{ mb: 3 }}>
+              <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
+                <Tab label={`Members (${group.memberships?.length || 0})`} />
+                <Tab label={`Commitments (${commitments.length})`} />
+                <Tab label="Liabilities" />
+              </Tabs>
+
+              <Box sx={{ p: 3 }}>
+                {/* Members Tab */}
+                {activeTab === 0 && (
+                  <List>
+                    {group.memberships?.map((membership) => (
+                      <ListItem key={membership.id}>
+                        <ListItemAvatar>
+                          <Avatar>
+                            <Person />
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={membership.user.username}
+                          secondary={`${membership.user.email} • ${membership.role}`}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+
+                {/* Commitments Tab */}
+                {activeTab === 1 && (
+                  <Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                      <Typography variant="h6">Group Commitments</Typography>
+                      <Button
+                        variant="contained"
+                        startIcon={<Add />}
+                        onClick={() => setCreateCommitmentOpen(true)}
+                      >
+                        Create Commitment
+                      </Button>
+                    </Box>
+
+                    {commitmentError && (
+                      <Alert severity="error" sx={{ mb: 2 }}>
+                        {commitmentError}
+                      </Alert>
+                    )}
+
+                    {commitmentsLoading ? (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                        <CircularProgress />
+                      </Box>
+                    ) : commitments.length === 0 ? (
+                      <Alert severity="info">
+                        No commitments yet. Create your first commitment to get started!
+                      </Alert>
+                    ) : (
+                      <Box>
+                        {commitments.map((commitment) => (
+                          <CommitmentCard
+                            key={commitment.id}
+                            commitment={commitment}
+                            currentUserId={user?.id || ''}
+                            groupMembers={group.memberships?.map(m => ({
+                              userId: m.user.id,
+                              username: m.user.username,
+                              email: m.user.email,
+                              role: m.role as 'creator' | 'member',
+                              joinedAt: m.joinedAt,
+                            }))}
+                            onEdit={openEditDialog}
+                            onRevoke={openRevokeDialog}
+                          />
+                        ))}
+                      </Box>
+                    )}
+                  </Box>
+                )}
+
+                {/* Liabilities Tab */}
+                {activeTab === 2 && (
+                  <Box>
+                    <LiabilityDisplay
+                      liabilities={liabilities}
+                      calculatedAt={calculatedAt || undefined}
+                      loading={liabilitiesLoading}
+                      onRefresh={loadLiabilities}
                     />
-                  </ListItem>
-                ))}
-              </List>
+                  </Box>
+                )}
+              </Box>
             </Paper>
           </>
         ) : (
@@ -300,6 +495,48 @@ export default function GroupDetailPage() {
           </Button>
           <Button onClick={handleUpdate} variant="contained" disabled={actionLoading || !editName.trim()}>
             {actionLoading ? 'Updating...' : 'Update'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Commitment Dialog */}
+      {group && (
+        <CreateCommitmentDialog
+          open={createCommitmentOpen}
+          onClose={() => {
+            setCreateCommitmentOpen(false);
+            setCommitmentToEdit(null);
+            setCommitmentError(null);
+          }}
+          onSubmit={handleCreateCommitment}
+          members={(group.memberships || []).map(m => ({
+            userId: m.user.id,
+            username: m.user.username,
+            email: m.user.email,
+            role: m.role as 'creator' | 'member',
+            joinedAt: m.joinedAt,
+          }))}
+          loading={actionLoading}
+          error={commitmentError}
+          initialCommitment={commitmentToEdit || undefined}
+        />
+      )}
+
+      {/* Revoke Commitment Dialog */}
+      <Dialog open={revokeDialogOpen} onClose={() => setRevokeDialogOpen(false)}>
+        <DialogTitle>Revoke Commitment</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to revoke this commitment? This action cannot be undone.
+            The commitment will be marked as revoked and will no longer affect liability calculations.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRevokeDialogOpen(false)} disabled={actionLoading}>
+            Cancel
+          </Button>
+          <Button onClick={handleRevokeCommitment} color="error" disabled={actionLoading}>
+            {actionLoading ? 'Revoking...' : 'Revoke'}
           </Button>
         </DialogActions>
       </Dialog>

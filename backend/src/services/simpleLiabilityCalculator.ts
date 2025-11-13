@@ -4,11 +4,11 @@ import { logger } from '../utils/logger';
 const prisma = new PrismaClient();
 
 interface SimpleCondition {
-  type: 'single_user' | 'aggregate';
+  type: 'single_user' | 'aggregate' | 'unconditional';
   targetUserId?: string;
-  action: string;
-  minAmount: number;
-  unit: string;
+  action?: string;
+  minAmount?: number;
+  unit?: string;
 }
 
 interface SimplePromise {
@@ -79,8 +79,8 @@ export class SimpleLiabilityCalculator {
     // Extract all unique action-unit pairs
     const actionUnits = this.extractUniqueActionUnits(commitments);
 
-    // Initialize liabilities to zero
-    const liabilities = this.initializeLiabilities(userIds, actionUnits);
+    // Initialize liabilities to maximum promised amounts (game-theoretic approach)
+    const liabilities = this.initializeLiabilities(userIds, actionUnits, commitments);
 
     // Fixed-point iteration
     let previousLiabilities: LiabilityMap | null = null;
@@ -92,10 +92,19 @@ export class SimpleLiabilityCalculator {
     ) {
       previousLiabilities = this.deepCopyLiabilities(liabilities);
 
+      // Reset all liabilities to zero, then recalculate based on currently satisfied conditions
+      for (const userId of userIds) {
+        for (const actionUnitKey of Object.keys(liabilities[userId])) {
+          liabilities[userId][actionUnitKey].amount = 0;
+          liabilities[userId][actionUnitKey].effectiveCommitmentIds = [];
+        }
+      }
+
+      // Recalculate liabilities based on currently satisfied conditions
       for (const commitment of commitments) {
         const conditionMet = this.evaluateCondition(
           commitment.parsedCommitment.condition,
-          liabilities,
+          previousLiabilities,
           commitment.creatorId
         );
 
@@ -119,7 +128,7 @@ export class SimpleLiabilityCalculator {
             };
           }
 
-          // Update to max committed value
+          // Update to max committed value among satisfied conditions
           if (amount > liabilities[userId][actionUnitKey].amount) {
             liabilities[userId][actionUnitKey].amount = amount;
             liabilities[userId][actionUnitKey].unit = unit;
@@ -154,11 +163,16 @@ export class SimpleLiabilityCalculator {
     currentLiabilities: LiabilityMap,
     creatorId: string
   ): boolean {
+    // Unconditional commitments are always satisfied
+    if (condition.type === 'unconditional') {
+      return true;
+    }
+    
     if (condition.type === 'single_user') {
       const userId = condition.targetUserId!;
       const actionUnitKey = `${condition.action}:${condition.unit}`;
       const userLiability = currentLiabilities[userId]?.[actionUnitKey]?.amount || 0;
-      return userLiability >= condition.minAmount;
+      return userLiability >= condition.minAmount!;
     } else if (condition.type === 'aggregate') {
       const actionUnitKey = `${condition.action}:${condition.unit}`;
       // Sum all users' liabilities for this action:unit combination, excluding the creator
@@ -168,7 +182,7 @@ export class SimpleLiabilityCalculator {
           totalLiability += currentLiabilities[userId]?.[actionUnitKey]?.amount || 0;
         }
       }
-      return totalLiability >= condition.minAmount;
+      return totalLiability >= condition.minAmount!;
     }
     return false;
   }
@@ -216,10 +230,15 @@ export class SimpleLiabilityCalculator {
 
     for (const commitment of commitments) {
       const { condition, promise } = commitment.parsedCommitment;
-      // Use composite key "action:unit" to treat different units as different actions
-      const conditionKey = `${condition.action}:${condition.unit}`;
+      
+      // Only process condition if it's not unconditional (has action and unit)
+      if (condition.action && condition.unit) {
+        const conditionKey = `${condition.action}:${condition.unit}`;
+        actionUnits.set(conditionKey, condition.unit);
+      }
+      
+      // Promise always has action and unit
       const promiseKey = `${promise.action}:${promise.unit}`;
-      actionUnits.set(conditionKey, condition.unit);
       actionUnits.set(promiseKey, promise.unit);
     }
 
@@ -227,11 +246,14 @@ export class SimpleLiabilityCalculator {
   }
 
   /**
-   * Initialize liabilities to zero for all users and action:unit combinations
+   * Initialize liabilities to maximum promised amounts for each user and action:unit combination
+   * This implements the game-theoretic approach where we start with max promises
+   * and iteratively reduce to what's actually required based on satisfied conditions
    */
-  private initializeLiabilities(userIds: string[], actionUnits: Map<string, string>): LiabilityMap {
+  private initializeLiabilities(userIds: string[], actionUnits: Map<string, string>, commitments: SimpleCommitment[]): LiabilityMap {
     const liabilities: LiabilityMap = {};
 
+    // Initialize all to zero first
     for (const userId of userIds) {
       liabilities[userId] = {};
       for (const [actionUnitKey, unit] of actionUnits.entries()) {
@@ -241,6 +263,34 @@ export class SimpleLiabilityCalculator {
           unit,
           effectiveCommitmentIds: [],
         };
+      }
+    }
+
+    // Set to maximum promised amounts
+    for (const commitment of commitments) {
+      const userId = commitment.creatorId;
+      const promise = commitment.parsedCommitment.promise;
+      const actionUnitKey = `${promise.action}:${promise.unit}`;
+      
+      if (!liabilities[userId]) {
+        liabilities[userId] = {};
+      }
+      if (!liabilities[userId][actionUnitKey]) {
+        liabilities[userId][actionUnitKey] = {
+          amount: 0,
+          unit: promise.unit,
+          effectiveCommitmentIds: [],
+        };
+      }
+      
+      // Set to max of all promises for this user-action-unit combination
+      if (promise.minAmount > liabilities[userId][actionUnitKey].amount) {
+        liabilities[userId][actionUnitKey].amount = promise.minAmount;
+        liabilities[userId][actionUnitKey].effectiveCommitmentIds = [commitment.id];
+      } else if (promise.minAmount === liabilities[userId][actionUnitKey].amount && promise.minAmount > 0) {
+        if (!liabilities[userId][actionUnitKey].effectiveCommitmentIds.includes(commitment.id)) {
+          liabilities[userId][actionUnitKey].effectiveCommitmentIds.push(commitment.id);
+        }
       }
     }
 

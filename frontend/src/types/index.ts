@@ -42,12 +42,12 @@ export interface ParsedCommitment {
 }
 
 export interface CommitmentCondition {
-  type: 'single_user' | 'aggregate';
+  type: 'single_user' | 'aggregate' | 'unconditional';
   targetUserId?: string;
   targetUsername?: string; // For display purposes
-  action: string;
-  minAmount: number;
-  unit: string;
+  action?: string;
+  minAmount?: number;
+  unit?: string;
 }
 
 export interface CommitmentPromise {
@@ -60,14 +60,23 @@ export interface Commitment {
   id: string;
   groupId: string;
   creatorId: string;
-  creatorUsername: string;
   status: 'active' | 'revoked';
-  conditionType: 'single_user' | 'aggregate';
+  conditionType: 'single_user' | 'aggregate' | 'unconditional';
   naturalLanguageText: string | null;
   parsedCommitment: ParsedCommitment;
   createdAt: string;
   updatedAt: string;
   revokedAt: string | null;
+  creator: {
+    id: string;
+    username: string;
+    email: string;
+  };
+  group: {
+    id: string;
+    name: string;
+  };
+  warnings?: string[];
 }
 
 export interface Liability {
