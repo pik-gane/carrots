@@ -180,6 +180,16 @@ This is based on the theoretical framework from: [Game-theoretic approaches to c
 
 ## Development
 
+### Quick Start: LLM Testing
+
+Set up a free, local LLM for testing in one command:
+```bash
+./scripts/setup-test-llm.sh
+```
+
+This downloads a lightweight model (Phi, ~1.6GB) in a Docker container. No API keys needed!
+See [docs/LLM_TESTING.md](./docs/LLM_TESTING.md) for details.
+
 ### Running Tests
 
 ```bash

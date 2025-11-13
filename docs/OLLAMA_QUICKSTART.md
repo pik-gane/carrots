@@ -2,6 +2,8 @@
 
 Want to use the LLM-powered commitment parsing **completely free and private**? This guide shows you how to set up Ollama for local LLM inference.
 
+> **💡 Quick Testing**: For quick testing with Docker, see [LLM_TESTING.md](./LLM_TESTING.md) or run `./scripts/setup-test-llm.sh`
+
 ## Why Ollama?
 
 - ✅ **Completely free** - no API costs ever
@@ -21,6 +23,12 @@ curl -fsSL https://ollama.com/install.sh | sh
 
 **Windows:**
 Download from [ollama.com](https://ollama.com)
+
+**Docker (for testing):**
+```bash
+./scripts/setup-test-llm.sh
+```
+See [LLM_TESTING.md](./LLM_TESTING.md) for details.
 
 ### 2. Pull a Model
 
