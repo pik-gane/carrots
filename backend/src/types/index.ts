@@ -7,7 +7,7 @@ export interface ParsedCommitment {
 
 // Individual condition in a conjunction
 export interface CommitmentCondition {
-  targetUserId: string; // The user Ai who must perform the action
+  targetUserId?: string; // The user Ai who must perform the action (null/undefined for aggregate)
   action: string; // The action Xi
   minAmount: number; // The minimum amount Vi
   unit: string;

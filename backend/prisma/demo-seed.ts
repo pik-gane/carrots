@@ -82,19 +82,18 @@ async function main() {
       conditionType: 'single_user',
       naturalLanguageText: 'If Bella does the daily dishes, I\'ll take out the weekly trash',
       parsedCommitment: {
-        condition: {
-          type: 'single_user',
+        conditions: [{
           targetUserId: bella.id,
-          targetUsername: 'Bella',
           action: 'dishes',
           minAmount: 1,
           unit: 'times per day',
-        },
-        promise: {
+        }],
+        promises: [{
           action: 'trash',
-          minAmount: 1,
+          baseAmount: 1,
+          proportionalAmount: 0,
           unit: 'times per week',
-        },
+        }],
       },
     },
   });
@@ -108,19 +107,18 @@ async function main() {
       conditionType: 'single_user',
       naturalLanguageText: 'I\'ll do the dishes twice a day if Celia pays 40% of the rent',
       parsedCommitment: {
-        condition: {
-          type: 'single_user',
+        conditions: [{
           targetUserId: celia.id,
-          targetUsername: 'Celia',
           action: 'rent payment',
           minAmount: 40,
           unit: 'percent',
-        },
-        promise: {
+        }],
+        promises: [{
           action: 'dishes',
-          minAmount: 2,
+          baseAmount: 2,
+          proportionalAmount: 0,
           unit: 'times per day',
-        },
+        }],
       },
     },
   });
@@ -134,17 +132,18 @@ async function main() {
       conditionType: 'aggregate',
       naturalLanguageText: 'I\'ll pay 30% of rent if the trash is taken out at least every two weeks',
       parsedCommitment: {
-        condition: {
-          type: 'aggregate',
+        conditions: [{
+          // No targetUserId = aggregate condition
           action: 'trash',
           minAmount: 1,
           unit: 'times every two weeks',
-        },
-        promise: {
+        }],
+        promises: [{
           action: 'rent payment',
-          minAmount: 30,
+          baseAmount: 30,
+          proportionalAmount: 0,
           unit: 'percent',
-        },
+        }],
       },
     },
   });
@@ -158,17 +157,18 @@ async function main() {
       conditionType: 'aggregate',
       naturalLanguageText: 'I\'ll pay 30% of rent if the trash is taken out at least every two weeks',
       parsedCommitment: {
-        condition: {
-          type: 'aggregate',
+        conditions: [{
+          // No targetUserId = aggregate condition
           action: 'trash',
           minAmount: 1/2,
           unit: 'times per week',
-        },
-        promise: {
+        }],
+        promises: [{
           action: 'rent payment',
-          minAmount: 30,
+          baseAmount: 30,
+          proportionalAmount: 0,
           unit: 'percent',
-        },
+        }],
       },
     },
   });
@@ -182,14 +182,18 @@ async function main() {
       conditionType: 'unconditional',
       naturalLanguageText: 'I\'ll pay those missing 10%',
       parsedCommitment: {
-        condition: {
-          type: 'unconditional',
-        },
-        promise: {
+        conditions: [{
+          // Trivial aggregate condition with minAmount 0 (always satisfied)
+          action: 'anything',
+          minAmount: 0,
+          unit: 'units',
+        }],
+        promises: [{
           action: 'rent payment',
-          minAmount: 10,
+          baseAmount: 10,
+          proportionalAmount: 0,
           unit: 'percent',
-        },
+        }],
       },
     },
   });
@@ -203,22 +207,24 @@ async function main() {
       conditionType: 'single_user',
       naturalLanguageText: 'I don’t care which of you pays them as long as they’re paid… (clarification of: I\'ll do the dishes twice a day if Celia pays 40% of the rent)',
       parsedCommitment: {
-        condition: {
-          type: 'aggregate',
+        conditions: [{
+          // No targetUserId = aggregate condition
           action: 'rent payment',
           minAmount: 40,
           unit: 'percent',
-        },
-        promise: {
+        }],
+        promises: [{
           action: 'dishes',
-          minAmount: 2,
+          baseAmount: 2,
+          proportionalAmount: 0,
           unit: 'times per day',
-        },
+        }],
       },
     },
   });
 
   // 5. The Cat: I'll reduce meowing by 1 dB for every 2 dB that Anna turns down AC/DC
+  // Using proportional matching: 0.5× (Anna's AC/DC reduction)
   const commitment5 = await prisma.commitment.create({
     data: {
       groupId: group.id,
@@ -227,19 +233,22 @@ async function main() {
       conditionType: 'single_user',
       naturalLanguageText: 'I\'ll reduce meowing by 1 dB for every 2 dB that Anna turns down AC/DC (so if she reduces by 7 dB, I\'ll reduce by 3.5 dB)',
       parsedCommitment: {
-        condition: {
-          type: 'single_user',
+        conditions: [{
           targetUserId: anna.id,
-          targetUsername: 'Anna',
           action: 'AC/DC volume reduction',
-          minAmount: 7,
+          minAmount: 2,
           unit: 'dB',
-        },
-        promise: {
+        }],
+        promises: [{
           action: 'meowing reduction',
-          minAmount: 3.5,
+          baseAmount: 0,
+          proportionalAmount: 0.5,
+          referenceUserId: anna.id,
+          referenceAction: 'AC/DC volume reduction',
+          thresholdAmount: 0,
+          maxAmount: 3.5,
           unit: 'dB',
-        },
+        }],
       },
     },
   });
@@ -253,19 +262,18 @@ async function main() {
       conditionType: 'single_user',
       naturalLanguageText: 'I\'ll turn down AC/DC by 7 dB if The Cat reduces meowing',
       parsedCommitment: {
-        condition: {
-          type: 'single_user',
+        conditions: [{
           targetUserId: cat.id,
-          targetUsername: 'The Cat',
           action: 'meowing reduction',
           minAmount: 3.5,
           unit: 'dB',
-        },
-        promise: {
+        }],
+        promises: [{
           action: 'AC/DC volume reduction',
-          minAmount: 7,
+          baseAmount: 7,
+          proportionalAmount: 0,
           unit: 'dB',
-        },
+        }],
       },
     },
   });
