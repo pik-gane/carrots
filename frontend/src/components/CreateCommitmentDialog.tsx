@@ -15,8 +15,6 @@ import {
   Typography,
   FormControl,
   IconButton,
-  Checkbox,
-  FormControlLabel,
 } from '@mui/material';
 import { Add, Delete } from '@mui/icons-material';
 import { ParsedCommitment, GroupMember, Commitment, CommitmentCondition, CommitmentPromise } from '../types';
@@ -191,9 +189,6 @@ export function CreateCommitmentDialog({
         unit: p.unit.trim(),
       })),
     };
-
-    onSubmit(parsedCommitment, naturalLanguageText.trim() || undefined);
-  };
 
     onSubmit(parsedCommitment, naturalLanguageText.trim() || undefined);
   };
