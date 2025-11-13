@@ -24,6 +24,11 @@ import {
   TextField,
   Tabs,
   Tab,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Stack,
 } from '@mui/material';
 import { ArrowBack, Edit, Delete, ExitToApp, Person, Add } from '@mui/icons-material';
 import { useAuth } from '../hooks/useAuth';
@@ -58,6 +63,10 @@ export default function GroupDetailPage() {
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
   const [commitmentToRevoke, setCommitmentToRevoke] = useState<Commitment | null>(null);
   const [commitmentToEdit, setCommitmentToEdit] = useState<Commitment | null>(null);
+  
+  // Filtering and sorting state
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'revoked'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'creator'>('newest');
   
   // Liabilities state
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
@@ -109,6 +118,30 @@ export default function GroupDetailPage() {
     } finally {
       setLiabilitiesLoading(false);
     }
+  };
+
+  // Filter and sort commitments
+  const getFilteredAndSortedCommitments = () => {
+    let filtered = commitments;
+    
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(c => c.status === statusFilter);
+    }
+    
+    // Apply sorting
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === 'newest') {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      } else if (sortBy === 'oldest') {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortBy === 'creator') {
+        return a.creator.username.localeCompare(b.creator.username);
+      }
+      return 0;
+    });
+    
+    return sorted;
   };
 
   useEffect(() => {
@@ -369,6 +402,36 @@ export default function GroupDetailPage() {
                       </Button>
                     </Box>
 
+                    {/* Filtering and Sorting Controls */}
+                    {commitments.length > 0 && (
+                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
+                        <FormControl size="small" sx={{ minWidth: 150 }}>
+                          <InputLabel>Status</InputLabel>
+                          <Select
+                            value={statusFilter}
+                            label="Status"
+                            onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'revoked')}
+                          >
+                            <MenuItem value="all">All</MenuItem>
+                            <MenuItem value="active">Active</MenuItem>
+                            <MenuItem value="revoked">Revoked</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <FormControl size="small" sx={{ minWidth: 150 }}>
+                          <InputLabel>Sort By</InputLabel>
+                          <Select
+                            value={sortBy}
+                            label="Sort By"
+                            onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'creator')}
+                          >
+                            <MenuItem value="newest">Newest First</MenuItem>
+                            <MenuItem value="oldest">Oldest First</MenuItem>
+                            <MenuItem value="creator">By Creator</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Stack>
+                    )}
+
                     {commitmentError && (
                       <Alert severity="error" sx={{ mb: 2 }}>
                         {commitmentError}
@@ -385,7 +448,7 @@ export default function GroupDetailPage() {
                       </Alert>
                     ) : (
                       <Box>
-                        {commitments.map((commitment) => (
+                        {getFilteredAndSortedCommitments().map((commitment) => (
                           <CommitmentCard
                             key={commitment.id}
                             commitment={commitment}
@@ -401,6 +464,11 @@ export default function GroupDetailPage() {
                             onRevoke={openRevokeDialog}
                           />
                         ))}
+                        {getFilteredAndSortedCommitments().length === 0 && (
+                          <Alert severity="info">
+                            No commitments match the selected filters.
+                          </Alert>
+                        )}
                       </Box>
                     )}
                   </Box>

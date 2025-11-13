@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { Add, Delete } from '@mui/icons-material';
 import { ParsedCommitment, GroupMember, Commitment, CommitmentCondition, CommitmentPromise } from '../types';
+import { InteractiveProportionalGraph } from './InteractiveProportionalGraph';
 
 interface CreateCommitmentDialogProps {
   open: boolean;
@@ -402,6 +403,17 @@ export function CreateCommitmentDialog({
                       inputProps={{ min: 0, step: 0.1 }}
                       fullWidth
                       helperText="Cap the proportional contribution at this amount"
+                    />
+
+                    {/* Interactive graph for proportional promises */}
+                    <InteractiveProportionalGraph
+                      promise={promise}
+                      groupMembers={members}
+                      onUpdate={(updates) => {
+                        Object.entries(updates).forEach(([key, value]) => {
+                          updatePromise(index, key as keyof CommitmentPromise, value);
+                        });
+                      }}
                     />
                   </>
                 )}
