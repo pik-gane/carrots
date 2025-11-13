@@ -3,48 +3,48 @@
 ## Phase 1: Project Setup and Core Infrastructure (Week 1)
 
 ### 1.1 Initialize Project Structure
-- [ ] Create monorepo structure with backend and frontend folders
-- [ ] Initialize Node.js/TypeScript project for backend
-- [ ] Initialize React/TypeScript project for frontend
-- [ ] Set up ESLint, Prettier, and TypeScript configs
-- [ ] Create Docker configuration files
-- [ ] Set up Git workflow and branch protection
+- [x] Create monorepo structure with backend and frontend folders
+- [x] Initialize Node.js/TypeScript project for backend
+- [x] Initialize React/TypeScript project for frontend
+- [x] Set up ESLint, Prettier, and TypeScript configs
+- [x] Create Docker configuration files
+- [x] Set up Git workflow and branch protection
 
 ### 1.2 Database Setup
-- [ ] Install and configure PostgreSQL
-- [ ] Set up Prisma ORM
-- [ ] Create initial schema based on data models
-- [ ] Generate Prisma client
-- [ ] Set up migration system
-- [ ] Create seed data for development
+- [x] Install and configure PostgreSQL
+- [x] Set up Prisma ORM
+- [x] Create initial schema based on data models
+- [x] Generate Prisma client
+- [x] Set up migration system
+- [x] Create seed data for development
 
 ### 1.3 Backend Foundation
-- [ ] Initialize Express.js application
-- [ ] Configure TypeScript for Node.js
-- [ ] Set up environment variable management
-- [ ] Configure CORS and security middleware
-- [ ] Set up logging (Winston or Pino)
-- [ ] Create base error handling
-- [ ] Set up API versioning
+- [x] Initialize Express.js application
+- [x] Configure TypeScript for Node.js
+- [x] Set up environment variable management
+- [x] Configure CORS and security middleware
+- [x] Set up logging (Winston or Pino)
+- [x] Create base error handling
+- [x] Set up API versioning
 
 ## Phase 2: Authentication and User Management (Week 2)
 
 ### 2.1 Authentication System
-- [ ] Implement user registration endpoint
-- [ ] Implement password hashing with bcrypt
-- [ ] Implement JWT token generation
-- [ ] Implement login endpoint
-- [ ] Implement logout endpoint
-- [ ] Create authentication middleware
-- [ ] Add refresh token mechanism
-- [ ] Write tests for auth flow
+- [x] Implement user registration endpoint
+- [x] Implement password hashing with bcrypt
+- [x] Implement JWT token generation
+- [x] Implement login endpoint
+- [x] Implement logout endpoint
+- [x] Create authentication middleware
+- [x] Add refresh token mechanism
+- [x] Write tests for auth flow
 
 ### 2.2 User Management
-- [ ] Create User model and repository
-- [ ] Implement user CRUD operations
-- [ ] Add user profile endpoints
-- [ ] Create user validation schemas
-- [ ] Write tests for user operations
+- [x] Create User model and repository
+- [x] Implement user CRUD operations
+- [x] Add user profile endpoints
+- [x] Create user validation schemas
+- [x] Write tests for user operations
 
 ### 2.3 Frontend Auth
 - [x] Create login page
@@ -89,65 +89,65 @@
 ## Phase 4: Core Commitment Engine (Week 4-5)
 
 ### 4.1 Commitment Data Models
-- [ ] Create Commitment model
-- [ ] Create CommitmentCondition model
-- [ ] Create CommitmentPromise model
-- [ ] Set up relationships and constraints
-- [ ] Create validation schemas
+- [x] Create Commitment model
+- [x] Create CommitmentCondition model (stored as JSON in parsedCommitment)
+- [x] Create CommitmentPromise model (stored as JSON in parsedCommitment)
+- [x] Set up relationships and constraints
+- [x] Create validation schemas
 
 ### 4.2 Commitment Parser (No LLM Initially)
-- [ ] Design structured commitment input format
-- [ ] Create commitment parser utility
-- [ ] Implement validation logic
-- [ ] Add unit tests for parser
-- [ ] Create mock commitments for testing
+- [x] Design structured commitment input format
+- [x] Create commitment parser utility
+- [x] Implement validation logic
+- [x] Add unit tests for parser
+- [x] Create mock commitments for testing (demo-seed.ts)
 
 ### 4.3 Liability Calculator
-- [ ] Implement fixed-point algorithm from paper
-- [ ] Create liability calculation service
-- [ ] Handle edge cases (circular dependencies, no convergence)
-- [ ] Add comprehensive unit tests
-- [ ] Test with various commitment scenarios
-- [ ] Optimize for performance
+- [x] Implement fixed-point algorithm from paper
+- [x] Create liability calculation service
+- [x] Handle edge cases (circular dependencies, no convergence)
+- [x] Add comprehensive unit tests
+- [x] Test with various commitment scenarios
+- [x] Optimize for performance
 
 ### 4.4 Commitment API Endpoints
-- [ ] POST /api/commitments - Create commitment
-- [ ] GET /api/commitments - List commitments
-- [ ] GET /api/commitments/:id - Get commitment
-- [ ] PUT /api/commitments/:id - Update commitment
-- [ ] DELETE /api/commitments/:id - Revoke commitment
-- [ ] Add authorization checks
-- [ ] Write integration tests
+- [x] POST /api/commitments - Create commitment
+- [x] GET /api/commitments - List commitments
+- [x] GET /api/commitments/:id - Get commitment
+- [x] PUT /api/commitments/:id - Update commitment
+- [x] DELETE /api/commitments/:id - Revoke commitment
+- [x] Add authorization checks
+- [x] Write integration tests
 
 ### 4.5 Liability API Endpoints
-- [ ] GET /api/groups/:id/liabilities - Get group liabilities
-- [ ] GET /api/users/:id/liabilities - Get user liabilities
+- [x] GET /api/groups/:id/liabilities - Get group liabilities
+- [x] GET /api/users/:id/liabilities - Get user liabilities
 - [ ] Add caching for expensive calculations
-- [ ] Write integration tests
+- [x] Write integration tests
 
 ## Phase 5: Frontend Commitment UI (Week 6)
 
 ### 5.1 Commitment Creation
-- [ ] Create structured commitment input form
-- [ ] Add user/action selection dropdowns
-- [ ] Implement form validation
-- [ ] Show commitment preview
-- [ ] Handle submission and errors
+- [x] Create structured commitment input form
+- [x] Add user/action selection dropdowns
+- [x] Implement form validation
+- [x] Show commitment preview
+- [x] Handle submission and errors
 
 ### 5.2 Commitment Display
-- [ ] Create commitment card component
-- [ ] Create commitment list page
+- [x] Create commitment card component
+- [x] Create commitment list page (integrated in GroupDetailPage)
 - [ ] Add filtering and sorting
 - [ ] Implement commitment detail view
-- [ ] Add edit/revoke actions
-- [ ] Show commitment status
+- [x] Add edit/revoke actions
+- [x] Show commitment status
 
 ### 5.3 Liability Display
-- [ ] Create liability summary component
-- [ ] Implement liability chart/visualization
-- [ ] Show liability breakdown by action
-- [ ] Add refresh mechanism
-- [ ] Display effective commitments
+- [x] Create liability summary component
+- [x] Implement liability chart/visualization
+- [x] Show liability breakdown by action
+- [x] Add refresh mechanism
+- [x] Display effective commitments
 
 ## Phase 6: Natural Language Processing (Week 7-8)
 
@@ -212,9 +212,9 @@
 - [ ] Mobile responsiveness testing
 
 ### 8.2 Deployment Setup
-- [ ] Create Dockerfile for backend
-- [ ] Create Dockerfile for frontend
-- [ ] Set up docker-compose for local development
+- [x] Create Dockerfile for backend
+- [x] Create Dockerfile for frontend
+- [x] Set up docker-compose for local development
 - [ ] Configure production environment variables
 - [ ] Set up CI/CD pipeline (GitHub Actions)
 - [ ] Deploy to staging environment
