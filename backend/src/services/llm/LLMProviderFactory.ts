@@ -1,7 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatOllama } from '@langchain/ollama';
-import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { logger } from '../../utils/logger';
 
 /**
@@ -41,7 +40,7 @@ export class LLMProviderFactory {
    * @param config - Provider configuration
    * @returns Configured LangChain chat model or null if not configured
    */
-  static createChatModel(config?: Partial<LLMProviderConfig>): BaseChatModel | null {
+  static createChatModel(config?: Partial<LLMProviderConfig>): any | null {
     // Get provider type from config or environment
     const providerType = config?.provider || 
                         (process.env.LLM_PROVIDER as LLMProviderType) || 

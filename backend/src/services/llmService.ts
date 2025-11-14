@@ -2,8 +2,12 @@ import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { ParsedCommitment, NLPParseResponse } from '../types';
 import { LLMProviderFactory, LLMProviderType } from './llm';
-import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+
+// Use require for LangChain imports to avoid TypeScript module resolution issues
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { BaseChatModel } = require('@langchain/core/language_models/chat_models');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
 
 const prisma = new PrismaClient();
 
@@ -15,7 +19,7 @@ const prisma = new PrismaClient();
  * based on requirements, cost, privacy, or availability.
  */
 export class LLMService {
-  private chatModel: BaseChatModel | null = null;
+  private chatModel: typeof BaseChatModel | null = null;
   private providerType: LLMProviderType;
 
   constructor() {
