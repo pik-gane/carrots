@@ -61,7 +61,8 @@ export class LLMService {
   async parseCommitment(
     naturalLanguageText: string,
     groupId: string,
-    userId: string
+    userId: string,
+    includeDebug: boolean = false
   ): Promise<NLPParseResponse> {
     if (!this.chatModel) {
       return {
@@ -91,11 +92,13 @@ export class LLMService {
         userId,
         textLength: naturalLanguageText.length,
         provider: this.providerType,
+        debug: includeDebug,
       });
 
       // Call LLM using LangChain
+      const systemMessage = 'You are a commitment parser for the Carrots app. Parse natural language commitments into structured JSON format. Always respond with valid JSON.';
       const messages = [
-        new SystemMessage('You are a commitment parser for the Carrots app. Parse natural language commitments into structured JSON format. Always respond with valid JSON.'),
+        new SystemMessage(systemMessage),
         new HumanMessage(prompt),
       ];
 
@@ -149,10 +152,21 @@ export class LLMService {
       );
 
       if (!validatedCommitment.success) {
-        return {
+        const result: NLPParseResponse = {
           success: false,
           clarificationNeeded: validatedCommitment.error || 'Invalid commitment format.',
         };
+        
+        // Include debug information even for failures if requested
+        if (includeDebug) {
+          result.debug = {
+            prompt,
+            response: responseText,
+            provider: this.providerType,
+          };
+        }
+        
+        return result;
       }
 
       logger.info('Successfully parsed commitment', { 
@@ -161,10 +175,21 @@ export class LLMService {
         provider: this.providerType,
       });
 
-      return {
+      const result: NLPParseResponse = {
         success: true,
         parsed: validatedCommitment.commitment,
       };
+
+      // Include debug information if requested
+      if (includeDebug) {
+        result.debug = {
+          prompt,
+          response: responseText,
+          provider: this.providerType,
+        };
+      }
+
+      return result;
     } catch (error: any) {
       logger.error('LLM parsing error', { 
         error: error.message, 

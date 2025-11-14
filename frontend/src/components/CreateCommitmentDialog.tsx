@@ -17,8 +17,13 @@ import {
   IconButton,
   CircularProgress,
   Paper,
+  Checkbox,
+  FormControlLabel,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
-import { Add, Delete, AutoAwesome } from '@mui/icons-material';
+import { Add, Delete, AutoAwesome, ExpandMore, BugReport } from '@mui/icons-material';
 import { ParsedCommitment, GroupMember, Commitment, CommitmentCondition, CommitmentPromise } from '../types';
 import { InteractiveProportionalGraph } from './InteractiveProportionalGraph';
 import { commitmentsApi } from '../api/commitments';
@@ -52,6 +57,8 @@ export function CreateCommitmentDialog({
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseSuccess, setParseSuccess] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<{ prompt: string; response: string; provider: string } | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -78,6 +85,10 @@ export function CreateCommitmentDialog({
         setNaturalLanguageText('');
       }
       setValidationError(null);
+      setDebugInfo(null);
+      // Check if debug mode should be enabled from localStorage or environment
+      const savedDebugMode = localStorage.getItem('llm_debug_mode') === 'true';
+      setDebugMode(savedDebugMode);
     }
   }, [open, initialCommitment]);
 
@@ -138,12 +149,19 @@ export function CreateCommitmentDialog({
     setParseError(null);
     setParseSuccess(false);
     setValidationError(null);
+    setDebugInfo(null);
 
     try {
       const result = await commitmentsApi.parse({
         naturalLanguageText: naturalLanguageText.trim(),
         groupId,
+        debug: debugMode,
       });
+
+      // Store debug info if available
+      if (result.debug) {
+        setDebugInfo(result.debug);
+      }
 
       if (!result.success) {
         setParseError(result.clarificationNeeded || 'Failed to parse commitment');
@@ -168,6 +186,12 @@ export function CreateCommitmentDialog({
     } finally {
       setParsing(false);
     }
+  };
+
+  const toggleDebugMode = () => {
+    const newDebugMode = !debugMode;
+    setDebugMode(newDebugMode);
+    localStorage.setItem('llm_debug_mode', newDebugMode.toString());
   };
 
   const handleSubmit = () => {
@@ -297,10 +321,78 @@ export function CreateCommitmentDialog({
             >
               {parsing ? 'Parsing...' : 'Parse with AI'}
             </Button>
-            <Typography variant="caption" sx={{ mt: 1, display: 'block', opacity: 0.9 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={debugMode}
+                  onChange={toggleDebugMode}
+                  size="small"
+                  icon={<BugReport />}
+                  checkedIcon={<BugReport />}
+                />
+              }
+              label={<Typography variant="caption">Debug Mode (show LLM prompt & response)</Typography>}
+              sx={{ mt: 1 }}
+            />
+            <Typography variant="caption" sx={{ display: 'block', opacity: 0.9 }}>
               Let AI help you create a commitment from plain English. You can review and adjust the result below.
             </Typography>
           </Paper>
+
+          {debugInfo && (
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <BugReport fontSize="small" />
+                  Debug Information ({debugInfo.provider})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      Prompt Sent to LLM:
+                    </Typography>
+                    <TextField
+                      value={debugInfo.prompt}
+                      multiline
+                      fullWidth
+                      InputProps={{ readOnly: true }}
+                      variant="outlined"
+                      sx={{ 
+                        '& .MuiInputBase-input': { 
+                          fontFamily: 'monospace', 
+                          fontSize: '0.8rem',
+                          maxHeight: '300px',
+                          overflow: 'auto',
+                        }
+                      }}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      Response from LLM:
+                    </Typography>
+                    <TextField
+                      value={debugInfo.response}
+                      multiline
+                      fullWidth
+                      InputProps={{ readOnly: true }}
+                      variant="outlined"
+                      sx={{ 
+                        '& .MuiInputBase-input': { 
+                          fontFamily: 'monospace', 
+                          fontSize: '0.8rem',
+                          maxHeight: '300px',
+                          overflow: 'auto',
+                        }
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+          )}
 
           <Divider>OR USE STRUCTURED FORM</Divider>
 

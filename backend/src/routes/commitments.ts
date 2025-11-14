@@ -36,6 +36,7 @@ router.post('/parse', apiRateLimiter, authenticate, async (req: Request, res: Re
     const parseRequestSchema = z.object({
       naturalLanguageText: z.string().min(10).max(1000),
       groupId: z.string().uuid(),
+      debug: z.boolean().optional(),
     });
 
     const validationResult = parseRequestSchema.safeParse(req.body);
@@ -47,7 +48,7 @@ router.post('/parse', apiRateLimiter, authenticate, async (req: Request, res: Re
       return;
     }
 
-    const { naturalLanguageText, groupId } = validationResult.data;
+    const { naturalLanguageText, groupId, debug = false } = validationResult.data;
     const userId = req.user!.userId;
 
     // Verify user is a member of the group
@@ -67,15 +68,16 @@ router.post('/parse', apiRateLimiter, authenticate, async (req: Request, res: Re
       return;
     }
 
-    logger.info('Parsing natural language commitment', { userId, groupId, textLength: naturalLanguageText.length });
+    logger.info('Parsing natural language commitment', { userId, groupId, textLength: naturalLanguageText.length, debug });
 
     // Parse using LLM service
-    const parseResult = await llmService.parseCommitment(naturalLanguageText, groupId, userId);
+    const parseResult = await llmService.parseCommitment(naturalLanguageText, groupId, userId, debug);
 
     if (!parseResult.success) {
       res.status(200).json({
         success: false,
         clarificationNeeded: parseResult.clarificationNeeded,
+        debug: parseResult.debug,
       });
       return;
     }
@@ -85,6 +87,7 @@ router.post('/parse', apiRateLimiter, authenticate, async (req: Request, res: Re
     res.status(200).json({
       success: true,
       parsed: parseResult.parsed,
+      debug: parseResult.debug,
     });
   } catch (error) {
     logger.error('Parse commitment error', { error });

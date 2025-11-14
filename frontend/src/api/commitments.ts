@@ -29,7 +29,7 @@ export interface CommitmentQueryParams {
 
 export const commitmentsApi = {
   // Parse natural language commitment
-  parse: async (data: { naturalLanguageText: string; groupId: string }): Promise<NLPParseResponse> => {
+  parse: async (data: { naturalLanguageText: string; groupId: string; debug?: boolean }): Promise<NLPParseResponse> => {
     const response = await apiClient.post<NLPParseResponse>('/api/commitments/parse', data);
     return response.data;
   },
