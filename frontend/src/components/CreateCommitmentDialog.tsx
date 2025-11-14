@@ -160,7 +160,10 @@ export function CreateCommitmentDialog({
 
       // Store debug info if available
       if (result.debug) {
+        console.log('Debug info received:', result.debug);
         setDebugInfo(result.debug);
+      } else {
+        console.log('No debug info in response:', result);
       }
 
       if (!result.success) {
@@ -340,13 +343,15 @@ export function CreateCommitmentDialog({
           </Paper>
 
           {debugInfo && (
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMore />}>
-                <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <BugReport fontSize="small" />
-                  Debug Information ({debugInfo.provider})
-                </Typography>
-              </AccordionSummary>
+            <>
+              {console.log('Rendering debug accordion with:', debugInfo)}
+              <Accordion>
+                <AccordionSummary expandIcon={<ExpandMore />}>
+                  <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <BugReport fontSize="small" />
+                    Debug Information ({debugInfo.provider})
+                  </Typography>
+                </AccordionSummary>
               <AccordionDetails>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <Box>
@@ -356,15 +361,15 @@ export function CreateCommitmentDialog({
                     <TextField
                       value={debugInfo.prompt}
                       multiline
+                      minRows={4}
+                      maxRows={15}
                       fullWidth
                       InputProps={{ readOnly: true }}
                       variant="outlined"
                       sx={{ 
-                        '& .MuiInputBase-input': { 
+                        '& .MuiInputBase-root': {
                           fontFamily: 'monospace', 
                           fontSize: '0.8rem',
-                          maxHeight: '300px',
-                          overflow: 'auto',
                         }
                       }}
                     />
@@ -376,15 +381,15 @@ export function CreateCommitmentDialog({
                     <TextField
                       value={debugInfo.response}
                       multiline
+                      minRows={4}
+                      maxRows={15}
                       fullWidth
                       InputProps={{ readOnly: true }}
                       variant="outlined"
                       sx={{ 
-                        '& .MuiInputBase-input': { 
+                        '& .MuiInputBase-root': {
                           fontFamily: 'monospace', 
                           fontSize: '0.8rem',
-                          maxHeight: '300px',
-                          overflow: 'auto',
                         }
                       }}
                     />
@@ -392,6 +397,7 @@ export function CreateCommitmentDialog({
                 </Box>
               </AccordionDetails>
             </Accordion>
+            </>
           )}
 
           <Divider>OR USE STRUCTURED FORM</Divider>
