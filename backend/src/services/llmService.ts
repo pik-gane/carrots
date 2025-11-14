@@ -197,26 +197,29 @@ export class LLMService {
         provider: this.providerType,
       });
       
-      // Handle rate limiting errors
-      if (error.message?.includes('rate limit') || error.message?.includes('429')) {
-        return {
-          success: false,
-          clarificationNeeded: 'API rate limit exceeded. Please try again in a moment or use structured input.',
-        };
-      }
-
-      // Handle other API errors
-      if (error.message) {
-        return {
-          success: false,
-          clarificationNeeded: `API error: ${error.message}. Please try again or use structured input.`,
-        };
-      }
-
-      return {
+      const result: NLPParseResponse = {
         success: false,
         clarificationNeeded: 'An error occurred while parsing. Please try again or use structured input.',
       };
+      
+      // Handle rate limiting errors
+      if (error.message?.includes('rate limit') || error.message?.includes('429')) {
+        result.clarificationNeeded = 'API rate limit exceeded. Please try again in a moment or use structured input.';
+      } else if (error.message) {
+        // Handle other API errors
+        result.clarificationNeeded = `API error: ${error.message}. Please try again or use structured input.`;
+      }
+
+      // Include debug information if requested (even for errors)
+      if (includeDebug) {
+        result.debug = {
+          prompt: prompt || 'Error occurred before prompt was generated',
+          response: error.message || 'No response received',
+          provider: this.providerType,
+        };
+      }
+
+      return result;
     }
   }
 
