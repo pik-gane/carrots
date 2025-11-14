@@ -47,6 +47,23 @@ docker exec carrots-ollama-test ollama pull phi
 
 ### 4. Configure Backend
 
+**For Docker Backend (recommended setup):**
+
+Edit `.env` in the **project root** (not `backend/.env`):
+```env
+LLM_PROVIDER=ollama
+LLM_MODEL=phi
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OPENAI_API_KEY=sk-placeholder
+```
+
+**Note for Linux users:** The `docker-compose.yml` includes `extra_hosts` configuration to enable `host.docker.internal` on Linux. If it still doesn't work, use:
+```env
+OLLAMA_BASE_URL=http://172.17.0.1:11434
+```
+
+**For local development (npm run dev):**
+
 Edit `backend/.env`:
 ```env
 LLM_PROVIDER="ollama"
@@ -54,7 +71,19 @@ LLM_MODEL="phi"
 OLLAMA_BASE_URL="http://localhost:11434"
 ```
 
-### 5. Test It
+### 5. Restart Backend
+
+```bash
+# If using Docker
+docker compose down
+docker compose up -d
+
+# If using npm run dev
+cd backend
+npm run dev
+```
+
+### 6. Test It
 
 ```bash
 # Quick test via Ollama directly

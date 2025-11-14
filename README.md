@@ -60,16 +60,28 @@ carrots/
    ```
    Choose option 1 to use Docker Compose credentials.
 
-3. **Start the application**
+3. **(Optional) Configure LLM for natural language commitments**
+   ```bash
+   # Copy the example file
+   cp .env.example .env
+   
+   # For free local LLM (recommended for testing)
+   ./scripts/setup-test-llm.sh
+   
+   # Or edit .env and configure your preferred LLM provider
+   # See docs/LLM_INTEGRATION.md for all options
+   ```
+
+4. **Start the application**
    ```bash
    docker compose up -d
    ```
 
-4. **Access the application**
+5. **Access the application**
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:3001
 
-5. **(Optional) Seed demo data**
+6. **(Optional) Seed demo data**
    ```bash
    cd backend
    npm run prisma:demo-seed
