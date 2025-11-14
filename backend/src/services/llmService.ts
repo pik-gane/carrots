@@ -71,6 +71,8 @@ export class LLMService {
       };
     }
 
+    let prompt: string | undefined;
+
     try {
       // Get group members for context
       const members = await this.getGroupMembers(groupId);
@@ -85,7 +87,7 @@ export class LLMService {
       }
 
       // Build the prompt
-      const prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username);
+      prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username);
 
       logger.info(`Sending commitment to ${this.providerType} for parsing`, {
         groupId,
