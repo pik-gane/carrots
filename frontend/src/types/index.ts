@@ -100,6 +100,11 @@ export interface NLPParseResponse {
   success: boolean;
   parsed?: ParsedCommitment;
   clarificationNeeded?: string;
+  debug?: {
+    prompt: string;
+    response: string;
+    provider: string;
+  };
 }
 
 export interface ApiError {

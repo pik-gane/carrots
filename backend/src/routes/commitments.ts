@@ -11,9 +11,92 @@ import {
 import { logger } from '../utils/logger';
 import { authenticate } from '../middleware/authenticate';
 import { apiRateLimiter } from '../middleware/rateLimiter';
+import { llmService } from '../services/llmService';
+import { z } from 'zod';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+/**
+ * POST /api/commitments/parse
+ * Parse natural language commitment into structured format
+ */
+router.post('/parse', apiRateLimiter, authenticate, async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Check if LLM service is enabled
+    if (!llmService.isLLMEnabled()) {
+      res.status(503).json({
+        error: 'LLM service not available',
+        message: 'Natural language processing is not configured. Please use structured commitment input.',
+      });
+      return;
+    }
+
+    // Validate input
+    const parseRequestSchema = z.object({
+      naturalLanguageText: z.string().min(10).max(1000),
+      groupId: z.string().uuid(),
+      debug: z.boolean().optional(),
+    });
+
+    const validationResult = parseRequestSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      res.status(400).json({
+        error: 'Validation error',
+        details: validationResult.error.errors,
+      });
+      return;
+    }
+
+    const { naturalLanguageText, groupId, debug = false } = validationResult.data;
+    const userId = req.user!.userId;
+
+    // Verify user is a member of the group
+    const groupMembership = await prisma.groupMembership.findUnique({
+      where: {
+        groupId_userId: {
+          groupId,
+          userId,
+        },
+      },
+    });
+
+    if (!groupMembership) {
+      res.status(404).json({
+        error: 'Group not found or you are not a member',
+      });
+      return;
+    }
+
+    logger.info('Parsing natural language commitment', { userId, groupId, textLength: naturalLanguageText.length, debug });
+
+    // Parse using LLM service
+    const parseResult = await llmService.parseCommitment(naturalLanguageText, groupId, userId, debug);
+
+    if (!parseResult.success) {
+      res.status(200).json({
+        success: false,
+        clarificationNeeded: parseResult.clarificationNeeded,
+        debug: parseResult.debug,
+      });
+      return;
+    }
+
+    logger.info('Successfully parsed commitment', { userId, groupId });
+
+    res.status(200).json({
+      success: true,
+      parsed: parseResult.parsed,
+      debug: parseResult.debug,
+    });
+  } catch (error) {
+    logger.error('Parse commitment error', { error });
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to parse commitment',
+    });
+  }
+});
 
 /**
  * POST /api/commitments

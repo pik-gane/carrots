@@ -584,6 +584,7 @@ export default function GroupDetailPage() {
             role: m.role as 'creator' | 'member',
             joinedAt: m.joinedAt,
           }))}
+          groupId={group.id}
           loading={actionLoading}
           error={commitmentError}
           initialCommitment={commitmentToEdit || undefined}

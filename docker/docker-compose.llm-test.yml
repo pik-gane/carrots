@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Ollama service with a small model for testing
+  ollama:
+    image: ollama/ollama:latest
+    container_name: carrots-ollama-test
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - carrots-network
+
+  # Init container to pull a small model
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: carrots-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for Ollama service to be ready...' &&
+        sleep 5 &&
+        echo 'Pulling phi model (lightweight, ~1.6GB)...' &&
+        ollama pull phi &&
+        echo 'Model downloaded successfully!' &&
+        echo 'You can now use LLM_PROVIDER=ollama with LLM_MODEL=phi'
+      "
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    networks:
+      - carrots-network
+
+volumes:
+  ollama-data:
+    driver: local
+
+networks:
+  carrots-network:
+    driver: bridge

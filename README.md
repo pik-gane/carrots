@@ -60,16 +60,28 @@ carrots/
    ```
    Choose option 1 to use Docker Compose credentials.
 
-3. **Start the application**
+3. **(Optional) Configure LLM for natural language commitments**
+   ```bash
+   # Copy the example file
+   cp .env.example .env
+   
+   # For free local LLM (recommended for testing)
+   ./scripts/setup-test-llm.sh
+   
+   # Or edit .env and configure your preferred LLM provider
+   # See docs/LLM_INTEGRATION.md for all options
+   ```
+
+4. **Start the application**
    ```bash
    docker compose up -d
    ```
 
-4. **Access the application**
+5. **Access the application**
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:3001
 
-5. **(Optional) Seed demo data**
+6. **(Optional) Seed demo data**
    ```bash
    cd backend
    npm run prisma:demo-seed
@@ -163,7 +175,7 @@ This is based on the theoretical framework from: [Game-theoretic approaches to c
 - **Database**: PostgreSQL
 - **ORM**: Prisma
 - **Authentication**: JWT
-- **LLM Integration**: OpenAI GPT-4
+- **LLM Integration**: LangChain (supports OpenAI, Anthropic, Ollama/local models)
 
 ### Frontend
 - **Framework**: React 18+
@@ -179,6 +191,16 @@ This is based on the theoretical framework from: [Game-theoretic approaches to c
 - **Testing**: Jest, React Testing Library, Cypress
 
 ## Development
+
+### Quick Start: LLM Testing
+
+Set up a free, local LLM for testing in one command:
+```bash
+./scripts/setup-test-llm.sh
+```
+
+This downloads a lightweight model (Phi, ~1.6GB) in a Docker container. No API keys needed!
+See [docs/LLM_TESTING.md](./docs/LLM_TESTING.md) for details.
 
 ### Running Tests
 
@@ -296,11 +318,11 @@ See [IMPLEMENTATION_STRATEGY.md](./IMPLEMENTATION_STRATEGY.md) for detailed deve
 - [x] User authentication (backend API complete - see [TESTING_AUTH_API.md](./TESTING_AUTH_API.md))
 - [x] User profile and settings frontend (Phase 2.4 complete)
 - [x] Group management (Phase 3 complete - full CRUD with member management)
+- [x] Natural language commitment parsing (Phase 6 complete - see [docs/LLM_INTEGRATION.md](./docs/LLM_INTEGRATION.md))
 - [ ] Structured commitment creation
 - [ ] Liability calculation engine
 
 ### Future Enhancements
-- [ ] Natural language commitment parsing
 - [ ] Real-time updates via WebSockets
 - [ ] Mobile application
 - [ ] Advanced visualizations

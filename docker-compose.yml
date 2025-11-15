@@ -28,6 +28,11 @@ services:
       PORT: 3001
       NODE_ENV: development
       CORS_ORIGIN: http://localhost:3000
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_MODEL: ${LLM_MODEL}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
