@@ -341,11 +341,15 @@ export function CreateCommitmentDialog({
                   checked={debugMode}
                   onChange={toggleDebugMode}
                   size="small"
-                  icon={<BugReport />}
-                  checkedIcon={<BugReport />}
+                  color="primary"
                 />
               }
-              label={<Typography variant="caption">Debug Mode (show LLM prompt & response)</Typography>}
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <BugReport fontSize="small" color={debugMode ? 'primary' : 'disabled'} />
+                  <Typography variant="caption">Debug Mode (show LLM prompt & response)</Typography>
+                </Box>
+              }
               sx={{ mt: 1 }}
             />
             <Typography variant="caption" sx={{ display: 'block', opacity: 0.9 }}>
