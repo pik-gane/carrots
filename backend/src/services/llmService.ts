@@ -163,17 +163,45 @@ ${response}
       // Parse the JSON response
       let parsedResponse;
       try {
-        // Extract JSON from markdown code blocks if present
-        const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) || 
-                         responseText.match(/```\s*([\s\S]*?)\s*```/);
-        const jsonText = jsonMatch ? jsonMatch[1] : responseText;
+        // Try multiple extraction strategies
+        let jsonText = responseText;
+        
+        // 1. Extract from markdown code blocks
+        const markdownMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) || 
+                             responseText.match(/```\s*([\s\S]*?)\s*```/);
+        if (markdownMatch) {
+          jsonText = markdownMatch[1];
+        } else {
+          // 2. Extract JSON object from text (find first { to last })
+          const firstBrace = responseText.indexOf('{');
+          const lastBrace = responseText.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            jsonText = responseText.substring(firstBrace, lastBrace + 1);
+          }
+        }
+        
         parsedResponse = JSON.parse(jsonText.trim());
       } catch (parseError) {
         logger.error(`Failed to parse ${this.providerType} response as JSON`, { responseText, parseError });
-        return {
+        
+        const result: NLPParseResponse = {
           success: false,
           clarificationNeeded: 'Failed to parse commitment. Please try rephrasing or use structured input.',
         };
+        
+        // Include debug information if requested (even for parsing failures)
+        if (includeDebug) {
+          result.debug = {
+            prompt,
+            response: responseText,
+            provider: this.providerType,
+          };
+          
+          // Log debug information to file
+          await this.logDebugToFile(prompt, responseText, userId, groupId);
+        }
+        
+        return result;
       }
 
       // Validate the response
