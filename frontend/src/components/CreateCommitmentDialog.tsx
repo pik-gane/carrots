@@ -158,7 +158,7 @@ export function CreateCommitmentDialog({
         debug: debugMode,
       });
 
-      // Store debug info if available
+      // Store debug info if available - MUST be done before any early returns!
       console.log('=== PARSE RESULT ===', result);
       console.log('result.debug exists?', !!result.debug);
       console.log('result.debug value:', result.debug);
@@ -170,6 +170,7 @@ export function CreateCommitmentDialog({
         console.log('No debug info in response:', result);
       }
 
+      // Check for errors AFTER setting debug info so it's available even for failed parses
       if (!result.success) {
         setParseError(result.clarificationNeeded || 'Failed to parse commitment');
         setParsing(false);
