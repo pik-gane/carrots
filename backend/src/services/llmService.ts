@@ -131,8 +131,11 @@ ${response}
         };
       }
 
+      // Get existing commitments for context
+      const existingCommitments = await this.getExistingCommitments(groupId);
+
       // Build the prompt
-      prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username);
+      prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username, existingCommitments, members);
 
       logger.info(`Sending commitment to ${this.providerType} for parsing`, {
         groupId,
@@ -260,6 +263,11 @@ ${response}
         parsed: validatedCommitment.commitment,
       };
 
+      // Include explanation if provided by LLM
+      if (parsedResponse.explanation) {
+        result.explanation = parsedResponse.explanation;
+      }
+
       // Include debug information if requested
       if (includeDebug) {
         result.debug = {
@@ -312,11 +320,58 @@ ${response}
   /**
    * Build the prompt for the LLM
    */
-  private buildPrompt(naturalLanguageText: string, memberNames: string, currentUsername: string): string {
+  private buildPrompt(
+    naturalLanguageText: string, 
+    memberNames: string, 
+    currentUsername: string,
+    existingCommitments: any[],
+    members: any[]
+  ): string {
+    // Create a user ID to username mapping
+    const userIdToUsername = new Map<string, string>();
+    members.forEach((m) => {
+      userIdToUsername.set(m.userId, m.user.username);
+    });
+
+    // Format existing commitments for the prompt
+    const formattedCommitments = existingCommitments.map((commitment) => {
+      const parsed = commitment.parsedCommitment as any;
+      
+      // Convert user IDs to usernames for readability
+      const conditionsWithUsernames = parsed.conditions.map((cond: any) => ({
+        targetUser: cond.targetUserId ? userIdToUsername.get(cond.targetUserId) : null,
+        action: cond.action,
+        minAmount: cond.minAmount,
+        unit: cond.unit,
+      }));
+
+      const promisesWithUsernames = parsed.promises.map((prom: any) => ({
+        action: prom.action,
+        baseAmount: prom.baseAmount,
+        proportionalAmount: prom.proportionalAmount,
+        referenceUser: prom.referenceUserId ? userIdToUsername.get(prom.referenceUserId) : null,
+        referenceAction: prom.referenceAction,
+        thresholdAmount: prom.thresholdAmount,
+        maxAmount: prom.maxAmount,
+        unit: prom.unit,
+      }));
+
+      return {
+        creator: commitment.creator.username,
+        conditions: conditionsWithUsernames,
+        promises: promisesWithUsernames,
+      };
+    });
+
+    const existingCommitmentsJson = JSON.stringify(formattedCommitments, null, 2);
+
     return `You are parsing a conditional commitment for the Carrots app.
 
 Group members: ${memberNames}
 Current user making the commitment: ${currentUsername}
+
+EXISTING COMMITMENTS IN THIS GROUP:
+${existingCommitmentsJson}
 
 User's commitment statement: "${naturalLanguageText}"
 
@@ -359,7 +414,8 @@ If successful:
   "parsed": {
     "conditions": [{ ... }],
     "promises": [{ ... }]
-  }
+  },
+  "explanation": "A brief explanation of how you interpreted the user's input, especially: (1) which actions you matched to existing actions in the group's commitments, (2) which units you converted or matched to existing units, and (3) any other notable interpretation decisions you made."
 }
 
 If you need clarification:
@@ -368,7 +424,11 @@ If you need clarification:
   "clarificationNeeded": "What specific question to ask the user"
 }
 
-Important:
+IMPORTANT INSTRUCTIONS:
+- Try to match the actions and units mentioned by the user to actions and units already present in the existing commitments above
+- If an action name is similar to an existing one, use the existing action name for consistency
+- If units don't match but the action does, convert the newly mentioned units to the existing units when possible
+- In your "explanation" field, clearly state when you've matched actions or converted units
 - Only include usernames that exist in the group members list
 - If a username is mentioned but not in the list, ask for clarification
 - If the statement is ambiguous, ask for clarification
@@ -390,6 +450,28 @@ Important:
             username: true,
           },
         },
+      },
+    });
+  }
+
+  /**
+   * Get existing active commitments for the group
+   */
+  private async getExistingCommitments(groupId: string) {
+    return await prisma.commitment.findMany({
+      where: {
+        groupId,
+        status: 'active',
+      },
+      include: {
+        creator: {
+          select: {
+            username: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
   }
