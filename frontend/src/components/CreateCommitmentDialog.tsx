@@ -159,9 +159,13 @@ export function CreateCommitmentDialog({
       });
 
       // Store debug info if available
+      console.log('=== PARSE RESULT ===', result);
+      console.log('result.debug exists?', !!result.debug);
+      console.log('result.debug value:', result.debug);
       if (result.debug) {
         console.log('Debug info received:', result.debug);
         setDebugInfo(result.debug);
+        console.log('debugInfo state should now be set');
       } else {
         console.log('No debug info in response:', result);
       }
@@ -272,6 +276,12 @@ export function CreateCommitmentDialog({
 
     onSubmit(parsedCommitment, naturalLanguageText.trim() || undefined);
   };
+
+  // Debug logging for render
+  console.log('=== RENDER DEBUG ===');
+  console.log('debugMode:', debugMode);
+  console.log('debugInfo:', debugInfo);
+  console.log('debugInfo truthy?:', !!debugInfo);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>

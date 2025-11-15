@@ -2,6 +2,8 @@ import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { ParsedCommitment, NLPParseResponse } from '../types';
 import { LLMProviderFactory, LLMProviderType } from './llm';
+import fs from 'fs';
+import path from 'path';
 
 // Use require for LangChain imports to avoid TypeScript module resolution issues
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -46,6 +48,49 @@ export class LLMService {
    */
   public getProviderName(): string {
     return this.providerType || 'none';
+  }
+
+  /**
+   * Log debug information to file
+   */
+  private async logDebugToFile(prompt: string, response: string, userId: string, groupId: string): Promise<void> {
+    try {
+      const logsDir = path.join(__dirname, '../../logs/llm-debug');
+      
+      // Ensure logs directory exists
+      if (!fs.existsSync(logsDir)) {
+        fs.mkdirSync(logsDir, { recursive: true });
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `llm-debug-${timestamp}-${userId.substring(0, 8)}.log`;
+      const filepath = path.join(logsDir, filename);
+
+      const logContent = `
+================================================================================
+LLM DEBUG LOG
+================================================================================
+Timestamp: ${new Date().toISOString()}
+User ID: ${userId}
+Group ID: ${groupId}
+Provider: ${this.providerType}
+
+PROMPT:
+--------------------------------------------------------------------------------
+${prompt}
+
+RESPONSE:
+--------------------------------------------------------------------------------
+${response}
+
+================================================================================
+`;
+
+      fs.writeFileSync(filepath, logContent, 'utf8');
+      logger.info('Debug information logged to file', { filepath, userId, groupId });
+    } catch (error: any) {
+      logger.error('Failed to write debug log file', { error: error.message });
+    }
   }
 
   /**
@@ -177,6 +222,11 @@ export class LLMService {
         provider: this.providerType,
       });
 
+      // Log debug information to file if requested
+      if (includeDebug && prompt) {
+        await this.logDebugToFile(prompt, responseText, userId, groupId);
+      }
+
       const result: NLPParseResponse = {
         success: true,
         parsed: validatedCommitment.commitment,
@@ -214,11 +264,17 @@ export class LLMService {
 
       // Include debug information if requested (even for errors)
       if (includeDebug) {
+        const errorPrompt = prompt || 'Error occurred before prompt was generated';
+        const errorResponse = error.message || 'No response received';
+        
         result.debug = {
-          prompt: prompt || 'Error occurred before prompt was generated',
-          response: error.message || 'No response received',
+          prompt: errorPrompt,
+          response: errorResponse,
           provider: this.providerType,
         };
+        
+        // Log error debug information to file
+        await this.logDebugToFile(errorPrompt, errorResponse, userId, groupId);
       }
 
       return result;
