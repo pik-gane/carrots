@@ -264,30 +264,38 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
       </Paper>
 
       {/* Message Input */}
-      <Box component="form" onSubmit={handleSendMessage} sx={{ display: 'flex', gap: 1 }}>
-        <TextField
-          fullWidth
-          multiline
-          maxRows={4}
-          value={messageText}
-          onChange={(e) => setMessageText(e.target.value)}
-          placeholder="Type a message... (e.g., 'If Alice does 5 hours of work, I'll do 3 hours')"
-          disabled={sending}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage(e);
-            }
+      <Box component="form" onSubmit={handleSendMessage} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <span style={{ fontSize: '1.2em' }}>👥</span>
+            Sending to group (visible to all members)
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <TextField
+            fullWidth
+            multiline
+            maxRows={4}
+            value={messageText}
+            onChange={(e) => setMessageText(e.target.value)}
+            placeholder="Type a message... (e.g., 'If Alice does 5 hours of work, I'll do 3 hours')"
+            disabled={sending}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage(e);
+              }
           }}
-        />
-        <Button
-          variant="contained"
-          type="submit"
-          disabled={!messageText.trim() || sending}
-          sx={{ minWidth: '100px' }}
-        >
-          {sending ? <CircularProgress size={24} /> : <Send />}
-        </Button>
+          />
+          <Button
+            variant="contained"
+            type="submit"
+            disabled={!messageText.trim() || sending}
+            sx={{ minWidth: '100px' }}
+          >
+            {sending ? <CircularProgress size={24} /> : <Send />}
+          </Button>
+        </Box>
       </Box>
 
       <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
