@@ -38,8 +38,9 @@ export const commitmentPromiseSchema = z.object({
 );
 
 // Schema for parsed commitment
+// Conditions can be empty for unconditional commitments
 export const parsedCommitmentSchema = z.object({
-  conditions: z.array(commitmentConditionSchema).min(1, 'At least one condition is required'),
+  conditions: z.array(commitmentConditionSchema),
   promises: z.array(commitmentPromiseSchema).min(1, 'At least one promise is required'),
 });
 
