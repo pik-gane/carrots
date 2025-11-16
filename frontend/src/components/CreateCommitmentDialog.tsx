@@ -268,11 +268,11 @@ export function CreateCommitmentDialog({
   };
 
   const handleSubmit = () => {
-    // Validate conditions
-    if (conditions.length === 0) {
-      setValidationError('At least one condition is required');
-      return;
-    }
+    // Validate conditions - can be empty for unconditional commitments
+    // if (conditions.length === 0) {
+    //   setValidationError('At least one condition is required');
+    //   return;
+    // }
 
     for (let i = 0; i < conditions.length; i++) {
       const condition = conditions[i];
