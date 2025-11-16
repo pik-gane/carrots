@@ -573,6 +573,11 @@ export function CreateCommitmentDialog({
                             {unit}
                           </MenuItem>
                         ))}
+                        {condition.unit && !existingActionsAndUnits.get(condition.action)!.has(condition.unit) && (
+                          <MenuItem key={condition.unit} value={condition.unit}>
+                            {condition.unit} (new)
+                          </MenuItem>
+                        )}
                         <MenuItem value="">
                           <em>Other (type custom unit)</em>
                         </MenuItem>
@@ -649,6 +654,11 @@ export function CreateCommitmentDialog({
                             {unit}
                           </MenuItem>
                         ))}
+                        {promise.unit && !existingActionsAndUnits.get(promise.action)!.has(promise.unit) && (
+                          <MenuItem key={promise.unit} value={promise.unit}>
+                            {promise.unit} (new)
+                          </MenuItem>
+                        )}
                         <MenuItem value="">
                           <em>Other (type custom unit)</em>
                         </MenuItem>
