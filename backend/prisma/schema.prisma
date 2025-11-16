@@ -22,6 +22,7 @@ model User {
   groupMemberships GroupMembership[]
   commitments      Commitment[]
   liabilities      Liability[]
+  messages         Message[]
 }
 
 model Group {
@@ -36,6 +37,7 @@ model Group {
   memberships GroupMembership[]
   commitments Commitment[]
   liabilities Liability[]
+  messages    Message[]
 }
 
 model GroupMembership {
@@ -87,4 +89,24 @@ model Liability {
   @@unique([groupId, userId, action])
   @@index([groupId])
   @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  groupId   String
+  userId    String?  // Null for system messages
+  type      String   // "user_message" | "system_commitment" | "system_liability" | "clarification_request" | "clarification_response"
+  content   String
+  metadata  Json?    // Additional data like commitmentId, liabilityChanges, etc.
+  isPrivate Boolean  @default(false) // True for clarification messages
+  targetUserId String? // For private messages, specifies recipient
+  createdAt DateTime @default(now())
+
+  group Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([isPrivate])
 }

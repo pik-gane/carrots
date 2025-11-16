@@ -619,6 +619,190 @@ ${existingCommitmentsJson}`;
       return { success: false, error: 'Failed to validate parsed commitment' };
     }
   }
+
+  /**
+   * Detect if a chat message contains a commitment
+   * Returns information about whether a commitment was detected, needs clarification, or is ambiguous
+   */
+  async detectCommitmentInMessage(
+    messageContent: string,
+    groupId: string,
+    userId: string
+  ): Promise<{
+    hasCommitment: boolean;
+    needsClarification: boolean;
+    clarificationQuestion?: string;
+    commitment?: ParsedCommitment;
+    rephrased?: string;
+  }> {
+    if (!this.chatModel) {
+      return {
+        hasCommitment: false,
+        needsClarification: false,
+      };
+    }
+
+    try {
+      // Get group members for context
+      const members = await this.getGroupMembers(groupId);
+      const memberNames = members.map((m) => m.user.username).join(', ');
+      const currentUser = members.find((m) => m.userId === userId);
+
+      if (!currentUser) {
+        return {
+          hasCommitment: false,
+          needsClarification: false,
+        };
+      }
+
+      // Build detection prompt
+      const prompt = `You are analyzing a chat message to detect if it contains a commitment or intention to revoke/update a commitment.
+
+Group members: ${memberNames}
+Current user: ${currentUser.user.username}
+
+Message: "${messageContent}"
+
+Analyze if this message contains:
+1. A new commitment (e.g., "If Alice does X, I will do Y")
+2. A revocation of a commitment (e.g., "I'm canceling my previous commitment")
+3. An update to a commitment (e.g., "Actually, I'll do Z instead of Y")
+
+Respond with JSON in this format:
+{
+  "hasCommitment": boolean, // true if the message contains any commitment-related intent
+  "needsClarification": boolean, // true if you're unsure about the commitment details
+  "clarificationQuestion": string (optional), // question to ask the user if clarification is needed
+  "commitment": ParsedCommitment (optional), // structured commitment if detected
+  "rephrased": string (optional), // natural language rephrasing of the commitment
+  "action": "create" | "revoke" | "update" (optional) // type of commitment action
+}
+
+For ParsedCommitment format:
+{
+  "conditions": [
+    {
+      "targetUserId": string (username), // User who must perform the action (or null for aggregate)
+      "action": string,
+      "minAmount": number,
+      "unit": string
+    }
+  ],
+  "promises": [
+    {
+      "action": string,
+      "baseAmount": number,
+      "proportionalAmount": number,
+      "referenceUserId": string (username, optional),
+      "referenceAction": string (optional),
+      "thresholdAmount": number (optional),
+      "maxAmount": number (optional),
+      "unit": string
+    }
+  ]
+}
+
+Guidelines:
+- Only detect clear commitment statements
+- If the message is just casual conversation, set hasCommitment to false
+- If details are ambiguous or missing, set needsClarification to true with a specific question
+- Use usernames (not user IDs) in the parsed commitment
+- Provide a clear, concise rephrasing of the commitment in natural language`;
+
+      const systemMessage = 'You are a commitment detection system for the Carrots app. Analyze messages to detect commitments and respond with valid JSON only.';
+      const messages = [
+        new SystemMessage(systemMessage),
+        new HumanMessage(prompt),
+      ];
+
+      const response = await this.chatModel.invoke(messages);
+      const responseText = response.content.toString();
+
+      // Parse the JSON response
+      let parsedResponse;
+      try {
+        let jsonText = responseText;
+        
+        // Extract from markdown code blocks
+        const markdownMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) || 
+                             responseText.match(/```\s*([\s\S]*?)\s*```/);
+        if (markdownMatch) {
+          jsonText = markdownMatch[1];
+        } else {
+          // Extract JSON object from text
+          const firstBrace = responseText.indexOf('{');
+          const lastBrace = responseText.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            jsonText = responseText.substring(firstBrace, lastBrace + 1);
+          }
+        }
+        
+        parsedResponse = JSON.parse(jsonText.trim());
+      } catch (parseError) {
+        logger.error('Failed to parse commitment detection response', { responseText, parseError });
+        return {
+          hasCommitment: false,
+          needsClarification: false,
+        };
+      }
+
+      // If no commitment detected, return early
+      if (!parsedResponse.hasCommitment) {
+        return {
+          hasCommitment: false,
+          needsClarification: false,
+        };
+      }
+
+      // If clarification is needed
+      if (parsedResponse.needsClarification) {
+        return {
+          hasCommitment: true,
+          needsClarification: true,
+          clarificationQuestion: parsedResponse.clarificationQuestion || 'Could you clarify your commitment?',
+        };
+      }
+
+      // If commitment is detected and clear
+      if (parsedResponse.commitment) {
+        // Validate and transform the parsed commitment
+        const validatedCommitment = await this.validateAndTransformParsedCommitment(
+          parsedResponse.commitment,
+          groupId,
+          members
+        );
+
+        if (validatedCommitment.success && validatedCommitment.commitment) {
+          return {
+            hasCommitment: true,
+            needsClarification: false,
+            commitment: validatedCommitment.commitment,
+            rephrased: parsedResponse.rephrased,
+          };
+        } else {
+          // Validation failed, ask for clarification
+          return {
+            hasCommitment: true,
+            needsClarification: true,
+            clarificationQuestion: validatedCommitment.error || 'Could you clarify the details of your commitment?',
+          };
+        }
+      }
+
+      // Default: commitment detected but no details
+      return {
+        hasCommitment: true,
+        needsClarification: true,
+        clarificationQuestion: 'Could you provide more details about your commitment?',
+      };
+    } catch (error: any) {
+      logger.error('Error detecting commitment in message', { error: error.message });
+      return {
+        hasCommitment: false,
+        needsClarification: false,
+      };
+    }
+  }
 }
 
 // Singleton instance

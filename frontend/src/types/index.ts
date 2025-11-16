@@ -112,3 +112,19 @@ export interface ApiError {
   error: string;
   statusCode: number;
 }
+
+export interface Message {
+  id: string;
+  groupId: string;
+  userId: string | null;
+  type: 'user_message' | 'system_commitment' | 'system_liability' | 'clarification_request' | 'clarification_response';
+  content: string;
+  metadata?: any;
+  isPrivate: boolean;
+  targetUserId?: string | null;
+  createdAt: string;
+  user?: {
+    id: string;
+    username: string;
+  } | null;
+}

@@ -39,6 +39,7 @@ import { Group, Commitment, Liability, ParsedCommitment } from '../types';
 import { CommitmentCard } from '../components/CommitmentCard';
 import { CreateCommitmentDialog } from '../components/CreateCommitmentDialog';
 import { LiabilityDisplay } from '../components/LiabilityDisplay';
+import { ChatWindow } from '../components/ChatWindow';
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -151,7 +152,7 @@ export default function GroupDetailPage() {
 
   useEffect(() => {
     // Load liabilities when switching to liabilities tab
-    if (activeTab === 2 && id) {
+    if (activeTab === 3 && id) {
       loadLiabilities();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -230,7 +231,7 @@ export default function GroupDetailPage() {
       setCreateCommitmentOpen(false);
       loadCommitments();
       // Refresh liabilities after creating a commitment
-      if (activeTab === 2) {
+      if (activeTab === 3) {
         loadLiabilities();
       }
     } catch (err: any) {
@@ -249,7 +250,7 @@ export default function GroupDetailPage() {
       setCommitmentToRevoke(null);
       loadCommitments();
       // Refresh liabilities after revoking a commitment
-      if (activeTab === 2) {
+      if (activeTab === 3) {
         loadLiabilities();
       }
     } catch (err: any) {
@@ -360,17 +361,23 @@ export default function GroupDetailPage() {
               </Typography>
             </Paper>
 
-            {/* Tabs for Members, Commitments, and Liabilities */}
+            {/* Tabs for Chat, Members, Commitments, and Liabilities */}
             <Paper elevation={3} sx={{ mb: 3 }}>
               <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
+                <Tab label="Chat" />
                 <Tab label={`Members (${group.memberships?.length || 0})`} />
                 <Tab label={`Commitments (${commitments.length})`} />
                 <Tab label="Liabilities" />
               </Tabs>
 
               <Box sx={{ p: 3 }}>
-                {/* Members Tab */}
+                {/* Chat Tab */}
                 {activeTab === 0 && (
+                  <ChatWindow groupId={id!} groupName={group.name} />
+                )}
+
+                {/* Members Tab */}
+                {activeTab === 1 && (
                   <List>
                     {group.memberships?.map((membership) => (
                       <ListItem key={membership.id}>
@@ -389,7 +396,7 @@ export default function GroupDetailPage() {
                 )}
 
                 {/* Commitments Tab */}
-                {activeTab === 1 && (
+                {activeTab === 2 && (
                   <Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                       <Typography variant="h6">Group Commitments</Typography>
@@ -475,7 +482,7 @@ export default function GroupDetailPage() {
                 )}
 
                 {/* Liabilities Tab */}
-                {activeTab === 2 && (
+                {activeTab === 3 && (
                   <Box>
                     <LiabilityDisplay
                       liabilities={liabilities}
