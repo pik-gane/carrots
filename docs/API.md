@@ -418,3 +418,92 @@ All endpoints may return error responses:
   "statusCode": 500
 }
 ```
+
+## Messages
+
+### Send Message
+- **POST** `/messages`
+- **Auth**: Required
+- **Body**:
+  ```json
+  {
+    "groupId": "uuid",
+    "content": "string (1-5000 chars)"
+  }
+  ```
+- **Response**: 201
+  ```json
+  {
+    "message": {
+      "id": "uuid",
+      "groupId": "uuid",
+      "userId": "uuid",
+      "type": "user_message",
+      "content": "string",
+      "metadata": null,
+      "isPrivate": false,
+      "targetUserId": null,
+      "createdAt": "ISO8601",
+      "user": {
+        "id": "uuid",
+        "username": "string"
+      }
+    }
+  }
+  ```
+- **Note**: After sending, the system asynchronously checks for commitments in the message. If detected, additional system messages will be created.
+
+### List Messages
+- **GET** `/messages?groupId={uuid}&limit={number}&before={ISO8601}`
+- **Auth**: Required
+- **Query Parameters**:
+  - `groupId` (required): Group ID
+  - `limit` (optional): Number of messages to return (1-100, default: 50)
+  - `before` (optional): ISO timestamp for pagination
+- **Response**: 200
+  ```json
+  {
+    "messages": [
+      {
+        "id": "uuid",
+        "groupId": "uuid",
+        "userId": "uuid | null",
+        "type": "user_message | system_commitment | system_liability | clarification_request | clarification_response",
+        "content": "string",
+        "metadata": {},
+        "isPrivate": false,
+        "targetUserId": "uuid | null",
+        "createdAt": "ISO8601",
+        "user": {
+          "id": "uuid",
+          "username": "string"
+        } | null
+      }
+    ]
+  }
+  ```
+- **Note**: 
+  - System messages have `userId: null`
+  - Private messages are only visible to the sender and recipient
+  - Messages are returned in chronological order (oldest first)
+
+### Message Types
+- `user_message`: Regular chat message from a user
+- `system_commitment`: System notification about a detected/created commitment
+- `system_liability`: System notification about liability changes
+- `clarification_request`: Private message from system requesting clarification
+- `clarification_response`: Private message from user responding to clarification
+
+### Automatic Commitment Detection
+When a user sends a message, the system:
+1. Immediately returns the message
+2. Asynchronously analyzes the message for commitments using LLM
+3. If a commitment is detected:
+   - Creates a structured commitment
+   - Posts a system message with the rephrased commitment
+   - Recalculates liabilities
+   - Posts a system message with liability changes (if any)
+4. If clarification is needed:
+   - Posts a private system message to the user
+
+See [CHAT_FEATURE.md](./CHAT_FEATURE.md) for detailed testing guide.
