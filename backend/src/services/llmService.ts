@@ -131,8 +131,11 @@ ${response}
         };
       }
 
+      // Get existing commitments for context
+      const existingCommitments = await this.getExistingCommitments(groupId);
+
       // Build the prompt
-      prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username);
+      prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username, existingCommitments, members);
 
       logger.info(`Sending commitment to ${this.providerType} for parsing`, {
         groupId,
@@ -260,6 +263,11 @@ ${response}
         parsed: validatedCommitment.commitment,
       };
 
+      // Include explanation if provided by LLM
+      if (parsedResponse.explanation) {
+        result.explanation = parsedResponse.explanation;
+      }
+
       // Include debug information if requested
       if (includeDebug) {
         result.debug = {
@@ -312,7 +320,51 @@ ${response}
   /**
    * Build the prompt for the LLM
    */
-  private buildPrompt(naturalLanguageText: string, memberNames: string, currentUsername: string): string {
+  private buildPrompt(
+    naturalLanguageText: string, 
+    memberNames: string, 
+    currentUsername: string,
+    existingCommitments: any[],
+    members: any[]
+  ): string {
+    // Create a user ID to username mapping
+    const userIdToUsername = new Map<string, string>();
+    members.forEach((m) => {
+      userIdToUsername.set(m.userId, m.user.username);
+    });
+
+    // Format existing commitments for the prompt
+    const formattedCommitments = existingCommitments.map((commitment) => {
+      const parsed = commitment.parsedCommitment as any;
+      
+      // Convert user IDs to usernames for readability
+      const conditionsWithUsernames = parsed.conditions.map((cond: any) => ({
+        targetUser: cond.targetUserId ? userIdToUsername.get(cond.targetUserId) : null,
+        action: cond.action,
+        minAmount: cond.minAmount,
+        unit: cond.unit,
+      }));
+
+      const promisesWithUsernames = parsed.promises.map((prom: any) => ({
+        action: prom.action,
+        baseAmount: prom.baseAmount,
+        proportionalAmount: prom.proportionalAmount,
+        referenceUser: prom.referenceUserId ? userIdToUsername.get(prom.referenceUserId) : null,
+        referenceAction: prom.referenceAction,
+        thresholdAmount: prom.thresholdAmount,
+        maxAmount: prom.maxAmount,
+        unit: prom.unit,
+      }));
+
+      return {
+        creator: commitment.creator.username,
+        conditions: conditionsWithUsernames,
+        promises: promisesWithUsernames,
+      };
+    });
+
+    const existingCommitmentsJson = JSON.stringify(formattedCommitments, null, 2);
+
     return `You are parsing a conditional commitment for the Carrots app.
 
 Group members: ${memberNames}
@@ -328,6 +380,7 @@ A commitment consists of:
    - action: the task/action name (string)
    - minAmount: minimum quantity (number)
    - unit: unit of measurement (string like "hours", "tasks", "dollars")
+   - NOTE: Conditions can be empty array for UNCONDITIONAL commitments (e.g., "I will do 5 hours of work")
 
 2. **Promises** (array): What the user commits to do if conditions are met
    - action: the task/action the user will perform (string)
@@ -352,6 +405,10 @@ Examples:
   → conditions: [{targetUserId: "bob", action: "testing", minAmount: 3, unit: "hours"}]
   → promises: [{action: "testing", baseAmount: 2, proportionalAmount: 0.5, referenceUserId: "bob", referenceAction: "testing", thresholdAmount: 3, maxAmount: 8, unit: "hours"}]
 
+- "I will do 10 hours of work" (unconditional commitment)
+  → conditions: []
+  → promises: [{action: "work", baseAmount: 10, proportionalAmount: 0, unit: "hours"}]
+
 Response format (JSON only, no markdown):
 If successful:
 {
@@ -359,7 +416,8 @@ If successful:
   "parsed": {
     "conditions": [{ ... }],
     "promises": [{ ... }]
-  }
+  },
+  "explanation": "A brief explanation of how you interpreted the user's input, especially: (1) which actions you matched to existing actions in the group's commitments, (2) which units you converted or matched to existing units, and (3) any other notable interpretation decisions you made."
 }
 
 If you need clarification:
@@ -368,13 +426,21 @@ If you need clarification:
   "clarificationNeeded": "What specific question to ask the user"
 }
 
-Important:
+IMPORTANT INSTRUCTIONS:
+- Commitments can be CONDITIONAL (with conditions) or UNCONDITIONAL (empty conditions array)
+- Try to match the actions and units mentioned by the user to actions and units already present in the existing commitments below
+- If an action name is similar to an existing one, use the existing action name for consistency
+- If units don't match but the action does, convert the newly mentioned units to the existing units when possible
+- In your "explanation" field, clearly state when you've matched actions or converted units
 - Only include usernames that exist in the group members list
 - If a username is mentioned but not in the list, ask for clarification
 - If the statement is ambiguous, ask for clarification
 - Always use consistent units within the commitment
 - For proportional promises, include thresholdAmount and maxAmount
-- Respond with ONLY valid JSON, no additional text`;
+- Respond with ONLY valid JSON, no additional text
+
+EXISTING COMMITMENTS IN THIS GROUP:
+${existingCommitmentsJson}`;
   }
 
   /**
@@ -390,6 +456,28 @@ Important:
             username: true,
           },
         },
+      },
+    });
+  }
+
+  /**
+   * Get existing active commitments for the group
+   */
+  private async getExistingCommitments(groupId: string) {
+    return await prisma.commitment.findMany({
+      where: {
+        groupId,
+        status: 'active',
+      },
+      include: {
+        creator: {
+          select: {
+            username: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
   }
@@ -412,9 +500,10 @@ Important:
         return { success: false, error: 'Invalid promises format' };
       }
 
-      if (parsed.conditions.length === 0) {
-        return { success: false, error: 'At least one condition is required' };
-      }
+      // Conditions can be empty for unconditional commitments
+      // if (parsed.conditions.length === 0) {
+      //   return { success: false, error: 'At least one condition is required' };
+      // }
 
       if (parsed.promises.length === 0) {
         return { success: false, error: 'At least one promise is required' };

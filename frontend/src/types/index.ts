@@ -99,6 +99,7 @@ export interface Liability {
 export interface NLPParseResponse {
   success: boolean;
   parsed?: ParsedCommitment;
+  explanation?: string; // LLM's explanation of how it interpreted the input
   clarificationNeeded?: string;
   debug?: {
     prompt: string;

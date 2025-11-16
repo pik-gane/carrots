@@ -22,6 +22,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Autocomplete,
 } from '@mui/material';
 import { Add, Delete, AutoAwesome, ExpandMore, BugReport } from '@mui/icons-material';
 import { ParsedCommitment, GroupMember, Commitment, CommitmentCondition, CommitmentPromise } from '../types';
@@ -57,8 +58,64 @@ export function CreateCommitmentDialog({
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseSuccess, setParseSuccess] = useState(false);
+  const [explanation, setExplanation] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [debugInfo, setDebugInfo] = useState<{ prompt: string; response: string; provider: string } | null>(null);
+  const [existingCommitments, setExistingCommitments] = useState<Commitment[]>([]);
+
+  // Fetch existing commitments when dialog opens
+  useEffect(() => {
+    if (open && groupId) {
+      const fetchExistingCommitments = async () => {
+        try {
+          const response = await commitmentsApi.list({ groupId, status: 'active' });
+          setExistingCommitments(response.commitments);
+        } catch (error) {
+          console.error('Failed to fetch existing commitments:', error);
+          setExistingCommitments([]);
+        }
+      };
+      fetchExistingCommitments();
+    }
+  }, [open, groupId]);
+
+  // Extract unique actions and units from existing commitments
+  const getExistingActionsAndUnits = () => {
+    const actionsMap = new Map<string, Set<string>>();
+    
+    existingCommitments.forEach(commitment => {
+      const parsed = commitment.parsedCommitment;
+      
+      // Process conditions
+      parsed.conditions.forEach(condition => {
+        if (!actionsMap.has(condition.action)) {
+          actionsMap.set(condition.action, new Set());
+        }
+        actionsMap.get(condition.action)!.add(condition.unit);
+      });
+      
+      // Process promises
+      parsed.promises.forEach(promise => {
+        if (!actionsMap.has(promise.action)) {
+          actionsMap.set(promise.action, new Set());
+        }
+        actionsMap.get(promise.action)!.add(promise.unit);
+        
+        // Also add reference actions
+        if (promise.referenceAction) {
+          if (!actionsMap.has(promise.referenceAction)) {
+            actionsMap.set(promise.referenceAction, new Set());
+          }
+          actionsMap.get(promise.referenceAction)!.add(promise.unit);
+        }
+      });
+    });
+    
+    return actionsMap;
+  };
+
+  const existingActionsAndUnits = getExistingActionsAndUnits();
+  const existingActions = Array.from(existingActionsAndUnits.keys()).sort();
 
   useEffect(() => {
     if (open) {
@@ -85,6 +142,7 @@ export function CreateCommitmentDialog({
         setNaturalLanguageText('');
       }
       setValidationError(null);
+      setExplanation(null);
       setDebugInfo(null);
       // Check if debug mode should be enabled from localStorage or environment
       const savedDebugMode = localStorage.getItem('llm_debug_mode') === 'true';
@@ -149,6 +207,7 @@ export function CreateCommitmentDialog({
     setParseError(null);
     setParseSuccess(false);
     setValidationError(null);
+    setExplanation(null);
     setDebugInfo(null);
 
     try {
@@ -168,6 +227,12 @@ export function CreateCommitmentDialog({
         console.log('debugInfo state should now be set');
       } else {
         console.log('No debug info in response:', result);
+      }
+
+      // Store explanation if available
+      if (result.explanation) {
+        console.log('Explanation received:', result.explanation);
+        setExplanation(result.explanation);
       }
 
       // Check for errors AFTER setting debug info so it's available even for failed parses
@@ -203,11 +268,11 @@ export function CreateCommitmentDialog({
   };
 
   const handleSubmit = () => {
-    // Validate conditions
-    if (conditions.length === 0) {
-      setValidationError('At least one condition is required');
-      return;
-    }
+    // Validate conditions - can be empty for unconditional commitments
+    // if (conditions.length === 0) {
+    //   setValidationError('At least one condition is required');
+    //   return;
+    // }
 
     for (let i = 0; i < conditions.length; i++) {
       const condition = conditions[i];
@@ -304,6 +369,17 @@ export function CreateCommitmentDialog({
           {parseSuccess && (
             <Alert severity="success" onClose={() => setParseSuccess(false)}>
               Successfully parsed! Review the generated conditions and promises below, then click Create.
+            </Alert>
+          )}
+
+          {explanation && (
+            <Alert severity="info" onClose={() => setExplanation(null)} icon={<AutoAwesome />}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                How the AI interpreted your input:
+              </Typography>
+              <Typography variant="body2">
+                {explanation}
+              </Typography>
             </Alert>
           )}
 
@@ -458,13 +534,22 @@ export function CreateCommitmentDialog({
                 </FormControl>
 
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                  <TextField
-                    label="Action"
+                  <Autocomplete
+                    freeSolo
+                    options={existingActions}
                     value={condition.action}
-                    onChange={(e) => updateCondition(index, 'action', e.target.value)}
-                    placeholder="e.g., work, contribute, donate"
+                    onChange={(_, newValue) => updateCondition(index, 'action', newValue || '')}
+                    onInputChange={(_, newValue) => updateCondition(index, 'action', newValue)}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Action"
+                        placeholder="e.g., work, contribute, donate"
+                        required
+                        helperText={existingActions.length > 0 ? "Select from existing actions or type new" : undefined}
+                      />
+                    )}
                     fullWidth
-                    required
                   />
                   <TextField
                     label="Minimum Amount"
@@ -475,14 +560,40 @@ export function CreateCommitmentDialog({
                     sx={{ width: '200px' }}
                     required
                   />
-                  <TextField
-                    label="Unit"
-                    value={condition.unit}
-                    onChange={(e) => updateCondition(index, 'unit', e.target.value)}
-                    placeholder="e.g., hours, dollars"
-                    sx={{ width: '200px' }}
-                    required
-                  />
+                  {existingActionsAndUnits.has(condition.action) && existingActionsAndUnits.get(condition.action)!.size > 0 ? (
+                    <FormControl sx={{ width: '200px' }} required>
+                      <InputLabel>Unit</InputLabel>
+                      <Select
+                        value={condition.unit}
+                        onChange={(e) => updateCondition(index, 'unit', e.target.value)}
+                        label="Unit"
+                      >
+                        {Array.from(existingActionsAndUnits.get(condition.action)!).map((unit) => (
+                          <MenuItem key={unit} value={unit}>
+                            {unit}
+                          </MenuItem>
+                        ))}
+                        {condition.unit && !existingActionsAndUnits.get(condition.action)!.has(condition.unit) && (
+                          <MenuItem key={condition.unit} value={condition.unit}>
+                            {condition.unit} (new)
+                          </MenuItem>
+                        )}
+                        <MenuItem value="">
+                          <em>Other (type custom unit)</em>
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <TextField
+                      label="Unit"
+                      value={condition.unit}
+                      onChange={(e) => updateCondition(index, 'unit', e.target.value)}
+                      placeholder="e.g., hours, dollars"
+                      sx={{ width: '200px' }}
+                      required
+                      helperText={condition.action ? "First action with this name" : undefined}
+                    />
+                  )}
                 </Box>
               </Box>
             </Box>
@@ -513,22 +624,57 @@ export function CreateCommitmentDialog({
 
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                  <TextField
-                    label="Action"
+                  <Autocomplete
+                    freeSolo
+                    options={existingActions}
                     value={promise.action}
-                    onChange={(e) => updatePromise(index, 'action', e.target.value)}
-                    placeholder="e.g., work, contribute, donate"
+                    onChange={(_, newValue) => updatePromise(index, 'action', newValue || '')}
+                    onInputChange={(_, newValue) => updatePromise(index, 'action', newValue)}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Action"
+                        placeholder="e.g., work, contribute, donate"
+                        required
+                        helperText={existingActions.length > 0 ? "Select from existing actions or type new" : undefined}
+                      />
+                    )}
                     fullWidth
-                    required
                   />
-                  <TextField
-                    label="Unit"
-                    value={promise.unit}
-                    onChange={(e) => updatePromise(index, 'unit', e.target.value)}
-                    placeholder="e.g., hours, dollars"
-                    sx={{ width: '200px' }}
-                    required
-                  />
+                  {existingActionsAndUnits.has(promise.action) && existingActionsAndUnits.get(promise.action)!.size > 0 ? (
+                    <FormControl sx={{ width: '200px' }} required>
+                      <InputLabel>Unit</InputLabel>
+                      <Select
+                        value={promise.unit}
+                        onChange={(e) => updatePromise(index, 'unit', e.target.value)}
+                        label="Unit"
+                      >
+                        {Array.from(existingActionsAndUnits.get(promise.action)!).map((unit) => (
+                          <MenuItem key={unit} value={unit}>
+                            {unit}
+                          </MenuItem>
+                        ))}
+                        {promise.unit && !existingActionsAndUnits.get(promise.action)!.has(promise.unit) && (
+                          <MenuItem key={promise.unit} value={promise.unit}>
+                            {promise.unit} (new)
+                          </MenuItem>
+                        )}
+                        <MenuItem value="">
+                          <em>Other (type custom unit)</em>
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <TextField
+                      label="Unit"
+                      value={promise.unit}
+                      onChange={(e) => updatePromise(index, 'unit', e.target.value)}
+                      placeholder="e.g., hours, dollars"
+                      sx={{ width: '200px' }}
+                      required
+                      helperText={promise.action ? "First action with this name" : undefined}
+                    />
+                  )}
                 </Box>
 
                 <Typography variant="subtitle2">Base Amount</Typography>
@@ -577,14 +723,22 @@ export function CreateCommitmentDialog({
                       </Select>
                     </FormControl>
 
-                    <TextField
-                      label="Reference Action"
+                    <Autocomplete
+                      freeSolo
+                      options={existingActions}
                       value={promise.referenceAction || ''}
-                      onChange={(e) => updatePromise(index, 'referenceAction', e.target.value)}
-                      placeholder="e.g., work, contribute, donate"
+                      onChange={(_, newValue) => updatePromise(index, 'referenceAction', newValue || '')}
+                      onInputChange={(_, newValue) => updatePromise(index, 'referenceAction', newValue)}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Reference Action"
+                          placeholder="e.g., work, contribute, donate"
+                          required={promise.proportionalAmount > 0}
+                          helperText="The action to monitor for proportional matching. Select from existing actions or type new."
+                        />
+                      )}
                       fullWidth
-                      required={promise.proportionalAmount > 0}
-                      helperText="The action to monitor for proportional matching"
                     />
 
                     <TextField

@@ -87,6 +87,7 @@ router.post('/parse', apiRateLimiter, authenticate, async (req: Request, res: Re
     res.status(200).json({
       success: true,
       parsed: parseResult.parsed,
+      explanation: parseResult.explanation,
       debug: parseResult.debug,
     });
   } catch (error) {
