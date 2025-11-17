@@ -32,24 +32,39 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const loadMessages = useCallback(async () => {
+  const loadMessages = useCallback(async (isInitialLoad = false) => {
     try {
-      setLoading(true);
+      // Only show loading indicator on initial load to avoid losing focus
+      if (isInitialLoad) {
+        setLoading(true);
+      }
       setError(null);
       const data = await messagesApi.list(groupId, 100);
-      setMessages(data);
-      scrollToBottom();
+      
+      // Only update if messages have changed to reduce re-renders
+      setMessages((prevMessages) => {
+        if (JSON.stringify(prevMessages) !== JSON.stringify(data)) {
+          return data;
+        }
+        return prevMessages;
+      });
+      
+      if (isInitialLoad) {
+        scrollToBottom();
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load messages');
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
   }, [groupId]);
 
   useEffect(() => {
-    loadMessages();
-    // Poll for new messages every 5 seconds
-    const interval = setInterval(loadMessages, 5000);
+    loadMessages(true); // Initial load with loading indicator
+    // Poll for new messages every 10 seconds (reduced from 5 to avoid rate limiting)
+    const interval = setInterval(() => loadMessages(false), 10000);
     return () => clearInterval(interval);
   }, [groupId, loadMessages]);
 
@@ -67,8 +82,8 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
       setMessages((prev) => [...prev, newMessage]);
       setMessageText('');
       scrollToBottom();
-      // Reload to get any system messages
-      setTimeout(loadMessages, 1000);
+      // Reload to get any system messages (without loading indicator)
+      setTimeout(() => loadMessages(false), 1000);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send message');
     } finally {

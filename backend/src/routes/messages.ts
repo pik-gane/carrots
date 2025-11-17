@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { authenticate } from '../middleware/authenticate';
 import { apiRateLimiter } from '../middleware/rateLimiter';
@@ -8,6 +9,20 @@ import { recalculateLiabilitiesAndNotify } from '../services/liabilityNotificati
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// Custom rate limiter for GET messages (used for polling)
+// More lenient to support frequent polling without hitting limits
+const messagesGetRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // Allow 200 requests per 15 minutes (supports 10-second polling)
+  message: {
+    error: 'Too many requests',
+    message: 'Too many message fetch requests. Please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+});
 
 // Validation schemas
 const sendMessageSchema = z.object({
@@ -98,7 +113,7 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
  * GET /api/messages
  * Get messages for a group
  */
-router.get('/', apiRateLimiter, authenticate, async (req: Request, res: Response): Promise<void> => {
+router.get('/', messagesGetRateLimiter, authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate query parameters
     const validationResult = listMessagesSchema.safeParse({
