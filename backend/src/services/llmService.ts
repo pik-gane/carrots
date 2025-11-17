@@ -780,11 +780,17 @@ Guidelines:
             rephrased: parsedResponse.rephrased,
           };
         } else {
-          // Validation failed, ask for clarification
+          // Validation failed, ask LLM to rephrase the error as a natural language clarification
+          const naturalClarification = await this.convertValidationErrorToClarification(
+            validatedCommitment.error || 'Invalid commitment format',
+            messageContent,
+            parsedResponse.commitment
+          );
+          
           return {
             hasCommitment: true,
             needsClarification: true,
-            clarificationQuestion: validatedCommitment.error || 'Could you clarify the details of your commitment?',
+            clarificationQuestion: naturalClarification,
           };
         }
       }
@@ -801,6 +807,58 @@ Guidelines:
         hasCommitment: false,
         needsClarification: false,
       };
+    }
+  }
+
+  /**
+   * Convert a technical validation error into a natural language clarification question
+   */
+  private async convertValidationErrorToClarification(
+    validationError: string,
+    originalMessage: string,
+    attemptedParse: any
+  ): Promise<string> {
+    if (!this.chatModel) {
+      // Fallback to a generic clarification if LLM not available
+      return 'Could you clarify the details of your commitment?';
+    }
+
+    try {
+      const prompt = `You are helping a user create a commitment, but their input has a validation issue.
+
+Original message: "${originalMessage}"
+What we understood: ${JSON.stringify(attemptedParse, null, 2)}
+Technical validation error: "${validationError}"
+
+Your task: Convert the validation error into a friendly, natural language clarification question that helps the user fix the issue.
+
+Examples:
+- Technical: "Condition minAmount must be a positive number"
+  Natural: "How many hours/minutes should the minimum be for that condition?"
+
+- Technical: "Promise amounts must be non-negative"
+  Natural: "How much would you like to commit to? Please provide a positive amount."
+
+- Technical: "User 'Bob' is not a member of this group"
+  Natural: "I don't see Bob in this group. Did you mean someone else?"
+
+Respond with ONLY the natural language clarification question, no additional formatting or JSON.`;
+
+      const systemMessage = 'You are a helpful assistant that converts technical errors into friendly clarification questions.';
+      const messages = [
+        new SystemMessage(systemMessage),
+        new HumanMessage(prompt),
+      ];
+
+      const response = await this.chatModel.invoke(messages);
+      const clarification = response.content.toString().trim();
+
+      // Remove any quotes or extra formatting
+      return clarification.replace(/^["']|["']$/g, '').trim() || 'Could you clarify the details of your commitment?';
+    } catch (error: any) {
+      logger.error('Error converting validation error to clarification', { error: error.message });
+      // Fallback to a generic clarification
+      return 'Could you clarify the details of your commitment?';
     }
   }
 }
