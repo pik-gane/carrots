@@ -134,8 +134,11 @@ ${response}
       // Get existing commitments for context
       const existingCommitments = await this.getExistingCommitments(groupId);
 
+      // Get current liabilities for context
+      const currentLiabilities = await this.getCurrentLiabilities(groupId);
+
       // Build the prompt
-      prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username, existingCommitments, members);
+      prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username, existingCommitments, members, currentLiabilities);
 
       logger.info(`Sending commitment to ${this.providerType} for parsing`, {
         groupId,
@@ -325,7 +328,8 @@ ${response}
     memberNames: string, 
     currentUsername: string,
     existingCommitments: any[],
-    members: any[]
+    members: any[],
+    currentLiabilities: any[]
   ): string {
     // Create a user ID to username mapping
     const userIdToUsername = new Map<string, string>();
@@ -364,6 +368,16 @@ ${response}
     });
 
     const existingCommitmentsJson = JSON.stringify(formattedCommitments, null, 2);
+
+    // Format current liabilities for the prompt
+    const formattedLiabilities = currentLiabilities.map((liability) => ({
+      user: userIdToUsername.get(liability.userId) || 'Unknown',
+      action: liability.action,
+      amount: liability.amount,
+      unit: liability.unit,
+    }));
+
+    const currentLiabilitiesJson = JSON.stringify(formattedLiabilities, null, 2);
 
     return `You are parsing a conditional commitment for the Carrots app.
 
@@ -417,7 +431,7 @@ If successful:
     "conditions": [{ ... }],
     "promises": [{ ... }]
   },
-  "explanation": "A brief explanation of how you interpreted the user's input, especially: (1) which actions you matched to existing actions in the group's commitments, (2) which units you converted or matched to existing units, and (3) any other notable interpretation decisions you made."
+  "explanation": "A brief explanation of how you interpreted the user's input, especially: (1) which actions you matched to existing actions in the group's commitments, (2) which units you converted or matched to existing units, (3) any references to current liabilities that you resolved with actual numbers, and (4) any other notable interpretation decisions you made."
 }
 
 If you need clarification:
@@ -431,7 +445,10 @@ IMPORTANT INSTRUCTIONS:
 - Try to match the actions and units mentioned by the user to actions and units already present in the existing commitments below
 - If an action name is similar to an existing one, use the existing action name for consistency
 - If units don't match but the action does, convert the newly mentioned units to the existing units when possible
-- In your "explanation" field, clearly state when you've matched actions or converted units
+- **IMPORTANT: If the user refers to "what [someone] currently does", "their current commitment", "double what [someone] does", etc., look up that person's current liability in the CURRENT LIABILITIES section below and substitute the actual numbers**
+- **For example: If the user says "if the cat does twice as much as what she currently does", and the cat's current liability for "laundry" is 1 times per week, then interpret this as "if the cat does at least 2 times per week of laundry"**
+- **Always resolve these references by looking up the actual liability amounts and include the resolved numbers in your parsed output**
+- **In your explanation field, clearly state when you've resolved references to current liabilities, showing: "Resolved 'twice what cat does' to 2 times per week based on cat's current laundry liability of 1 times per week"**
 - Only include usernames that exist in the group members list
 - If a username is mentioned but not in the list, ask for clarification
 - If the statement is ambiguous, ask for clarification
@@ -440,7 +457,12 @@ IMPORTANT INSTRUCTIONS:
 - Respond with ONLY valid JSON, no additional text
 
 EXISTING COMMITMENTS IN THIS GROUP:
-${existingCommitmentsJson}`;
+${existingCommitmentsJson}
+
+CURRENT LIABILITIES IN THIS GROUP:
+${currentLiabilitiesJson}
+
+Note: The current liabilities show what each user is currently committed to doing based on all active commitments. When users refer to "what someone currently does" or "their current commitment", use these liability values.`;
   }
 
   /**
@@ -480,6 +502,27 @@ ${existingCommitmentsJson}`;
         createdAt: 'desc',
       },
     });
+  }
+
+  /**
+   * Get current liabilities for the group
+   */
+  private async getCurrentLiabilities(groupId: string) {
+    // Import LiabilityCalculator dynamically to avoid circular dependencies
+    const { LiabilityCalculator } = await import('./liabilityCalculator');
+    const calculator = new LiabilityCalculator();
+    
+    const liabilities = await calculator.calculateGroupLiabilities(groupId);
+    
+    // Filter out zero liabilities and format for the prompt
+    return liabilities
+      .filter((liability) => liability.amount > 0)
+      .map((liability) => ({
+        userId: liability.userId,
+        action: liability.action,
+        amount: liability.amount,
+        unit: liability.unit,
+      }));
   }
 
   /**
