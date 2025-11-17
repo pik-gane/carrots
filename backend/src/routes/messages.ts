@@ -337,6 +337,7 @@ async function processMessageForCommitment(
                     originalMessageId,
                     clarificationMessageId: recentClarification.id,
                     link: commitmentLink,
+                    debug: detectionResult.debug,
                   },
                 },
               });
@@ -380,6 +381,7 @@ async function processMessageForCommitment(
           targetUserId: userId,
           metadata: {
             originalMessageId: messageId,
+            debug: detectionResult.debug,
           },
         },
       });
@@ -420,6 +422,7 @@ async function processMessageForCommitment(
             commitmentId: commitment.id,
             originalMessageId: messageId,
             link: commitmentLink, // Store link in metadata for frontend to render
+            debug: detectionResult.debug,
           },
         },
       });
