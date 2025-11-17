@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
+import { emitNewMessage } from './websocket';
 
 const prisma = new PrismaClient();
 
@@ -61,7 +62,7 @@ export async function recalculateLiabilitiesAndNotify(groupId: string): Promise<
 
     if (changes.length > 0) {
       const changeText = formatLiabilityChanges(changes);
-      await prisma.message.create({
+      const liabilityMessage = await prisma.message.create({
         data: {
           groupId,
           userId: null, // System message
@@ -73,6 +74,9 @@ export async function recalculateLiabilitiesAndNotify(groupId: string): Promise<
           },
         },
       });
+      
+      // Emit liability notification to all group members
+      emitNewMessage(groupId, liabilityMessage);
 
       logger.info('Liability changes notified to chat', { groupId, changeCount: changes.length });
     }

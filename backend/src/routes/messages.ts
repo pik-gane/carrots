@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 import { authenticate } from '../middleware/authenticate';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import { recalculateLiabilitiesAndNotify } from '../services/liabilityNotificationService';
+import { emitNewMessage } from '../services/websocket';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -93,6 +94,10 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
     });
 
     logger.info('Message sent', { messageId: message.id, groupId, userId });
+    
+    // Emit message to all clients in the group via WebSocket
+    emitNewMessage(groupId, message);
+    
     res.status(201).json({ message });
 
     // Asynchronously check for commitment in the message
@@ -227,7 +232,7 @@ async function processMessageForCommitment(
 
     if (detectionResult.needsClarification) {
       // LLM is unsure, ask for clarification
-      await prisma.message.create({
+      const clarificationMessage = await prisma.message.create({
         data: {
           groupId,
           userId: null, // System message
@@ -241,6 +246,9 @@ async function processMessageForCommitment(
         },
       });
       logger.info('Clarification request sent', { messageId, userId });
+      
+      // Emit private clarification to specific user
+      emitNewMessage(groupId, clarificationMessage);
       return;
     }
 
@@ -263,7 +271,7 @@ async function processMessageForCommitment(
       const rephrasedText = detectionResult.rephrased || 'Commitment created';
       const commitmentLink = `/groups/${groupId}?tab=commitments`;
 
-      await prisma.message.create({
+      const commitmentMessage = await prisma.message.create({
         data: {
           groupId,
           userId: null, // System message
@@ -276,6 +284,9 @@ async function processMessageForCommitment(
           },
         },
       });
+      
+      // Emit commitment message to all group members
+      emitNewMessage(groupId, commitmentMessage);
 
       logger.info('Commitment created from message', { commitmentId: commitment.id, messageId });
 

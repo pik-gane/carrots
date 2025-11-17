@@ -10,9 +10,12 @@ import {
   Chip,
 } from '@mui/material';
 import { Send, Info } from '@mui/icons-material';
+import { io, Socket } from 'socket.io-client';
 import { Message } from '../types';
 import { messagesApi } from '../api/messages';
 import { useAuth } from '../hooks/useAuth';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface ChatWindowProps {
   groupId: string;
@@ -27,6 +30,7 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -34,20 +38,13 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
 
   const loadMessages = useCallback(async (isInitialLoad = false) => {
     try {
-      // Only show loading indicator on initial load to avoid losing focus
+      // Only show loading indicator on initial load
       if (isInitialLoad) {
         setLoading(true);
       }
       setError(null);
       const data = await messagesApi.list(groupId, 100);
-      
-      // Only update if messages have changed to reduce re-renders
-      setMessages((prevMessages) => {
-        if (JSON.stringify(prevMessages) !== JSON.stringify(data)) {
-          return data;
-        }
-        return prevMessages;
-      });
+      setMessages(data);
       
       if (isInitialLoad) {
         scrollToBottom();
@@ -61,12 +58,58 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
     }
   }, [groupId]);
 
+  // Set up WebSocket connection
   useEffect(() => {
-    loadMessages(true); // Initial load with loading indicator
-    // Poll for new messages every 10 seconds (reduced from 5 to avoid rate limiting)
-    const interval = setInterval(() => loadMessages(false), 10000);
-    return () => clearInterval(interval);
-  }, [groupId, loadMessages]);
+    // Load initial messages
+    loadMessages(true);
+
+    // Connect to WebSocket
+    const socket = io(API_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('Connected to WebSocket');
+      // Join the group room
+      socket.emit('join-group', groupId);
+    });
+
+    socket.on('new-message', (newMessage: Message) => {
+      // Check if this message is for the current user (for private messages)
+      const isForMe = !newMessage.isPrivate || 
+                      newMessage.targetUserId === user?.id || 
+                      newMessage.userId === user?.id;
+      
+      if (isForMe) {
+        setMessages((prev) => {
+          // Avoid duplicates
+          const exists = prev.some(m => m.id === newMessage.id);
+          if (exists) return prev;
+          return [...prev, newMessage];
+        });
+        // Auto-scroll when new message arrives
+        setTimeout(scrollToBottom, 100);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from WebSocket');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('WebSocket connection error:', err);
+    });
+
+    return () => {
+      if (socket) {
+        socket.emit('leave-group', groupId);
+        socket.disconnect();
+      }
+    };
+  }, [groupId, loadMessages, user?.id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -78,12 +121,10 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
 
     try {
       setSending(true);
-      const newMessage = await messagesApi.send(groupId, messageText.trim());
-      setMessages((prev) => [...prev, newMessage]);
+      // Send message - it will be echoed back via WebSocket
+      await messagesApi.send(groupId, messageText.trim());
       setMessageText('');
-      scrollToBottom();
-      // Reload to get any system messages (without loading indicator)
-      setTimeout(() => loadMessages(false), 1000);
+      // System messages (commitment, liability) will arrive via WebSocket
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send message');
     } finally {
