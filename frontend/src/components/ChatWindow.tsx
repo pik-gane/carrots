@@ -153,6 +153,57 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
     const isSystemMessage = message.userId === null;
     const isPrivate = message.isPrivate;
 
+    // Handle private clarification requests first (system messages to specific user)
+    if (isPrivate && message.type === 'clarification_request') {
+      return (
+        <Box
+          key={message.id}
+          sx={{
+            mb: 2,
+            display: 'flex',
+            justifyContent: 'flex-start',
+          }}
+        >
+          <Paper
+            elevation={1}
+            sx={{
+              p: 2,
+              maxWidth: '70%',
+              bgcolor: 'warning.light',
+              borderLeft: '4px solid',
+              borderLeftColor: 'warning.main',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Typography variant="caption" fontWeight="bold">
+                System (Private)
+              </Typography>
+              <Chip label="Clarification Needed" size="small" color="warning" />
+            </Box>
+            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+              {message.content}
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => {
+                setReplyingTo(message);
+                // Focus the input field
+                const input = document.querySelector('textarea');
+                if (input) input.focus();
+              }}
+              sx={{ mt: 1 }}
+            >
+              Reply Privately
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              {formatTimestamp(message.createdAt)}
+            </Typography>
+          </Paper>
+        </Box>
+      );
+    }
+
     // Different rendering for different message types
     if (isSystemMessage) {
       return (
@@ -209,9 +260,45 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
       );
     }
 
+    // Handle private clarification responses (user's private replies)
+    if (isPrivate && message.type === 'clarification_response') {
+      return (
+        <Box
+          key={message.id}
+          sx={{
+            mb: 2,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <Paper
+            elevation={1}
+            sx={{
+              p: 2,
+              maxWidth: '70%',
+              bgcolor: 'warning.light',
+              borderLeft: '4px solid',
+              borderLeftColor: 'warning.main',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Typography variant="caption" fontWeight="bold">
+                {message.user?.username} (Private Reply)
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+              {message.content}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              {formatTimestamp(message.createdAt)}
+            </Typography>
+          </Paper>
+        </Box>
+      );
+    }
+
+    // Other private messages (shouldn't normally happen, but handle gracefully)
     if (isPrivate) {
-      const isClarificationRequest = message.type === 'clarification_request' && !isOwnMessage;
-      
       return (
         <Box
           key={message.id}
@@ -235,31 +322,17 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
               <Typography variant="caption" fontWeight="bold">
                 {message.user?.username || 'System'} (Private)
               </Typography>
-              {message.type === 'clarification_request' && (
-                <Chip label="Clarification Needed" size="small" color="warning" />
-              )}
             </Box>
             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
               {message.content}
             </Typography>
-            {isClarificationRequest && (
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => {
-                  setReplyingTo(message);
-                  // Focus the input field
-                  const input = document.querySelector('textarea');
-                  if (input) input.focus();
-                }}
-                sx={{ mt: 1 }}
-              >
-                Reply Privately
-              </Button>
-            )}
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
               {formatTimestamp(message.createdAt)}
             </Typography>
+          </Paper>
+        </Box>
+      );
+    }
           </Paper>
         </Box>
       );
