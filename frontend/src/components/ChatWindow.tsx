@@ -8,9 +8,11 @@ import {
   CircularProgress,
   Alert,
   Chip,
+  Link as MuiLink,
 } from '@mui/material';
 import { Send, Info } from '@mui/icons-material';
 import { io, Socket } from 'socket.io-client';
+import { Link as RouterLink } from 'react-router-dom';
 import { Message } from '../types';
 import { messagesApi } from '../api/messages';
 import { useAuth } from '../hooks/useAuth';
@@ -186,6 +188,17 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
               {message.content}
             </Typography>
+            {message.type === 'system_commitment' && message.metadata?.link && (
+              <Box sx={{ mt: 1 }}>
+                <MuiLink
+                  component={RouterLink}
+                  to={message.metadata.link as string}
+                  sx={{ fontSize: '0.875rem', fontWeight: 500 }}
+                >
+                  View in Commitment Panel →
+                </MuiLink>
+              </Box>
+            )}
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
               {formatTimestamp(message.createdAt)}
             </Typography>

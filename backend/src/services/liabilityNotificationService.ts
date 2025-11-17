@@ -103,6 +103,15 @@ function detectLiabilityChanges(
     });
   }
 
+  const newMap = new Map<string, { amount: number; unit: string }>();
+  for (const liability of newLiabilities) {
+    newMap.set(`${liability.userId}:${liability.action}`, {
+      amount: liability.amount,
+      unit: liability.unit,
+    });
+  }
+
+  // Check for new and updated liabilities
   for (const newLiability of newLiabilities) {
     const key = `${newLiability.userId}:${newLiability.action}`;
     const old = oldMap.get(key);
@@ -128,6 +137,21 @@ function detectLiabilityChanges(
     }
   }
 
+  // Check for removed liabilities
+  for (const oldLiability of oldLiabilities) {
+    const key = `${oldLiability.userId}:${oldLiability.action}`;
+    if (!newMap.has(key)) {
+      // Removed liability
+      changes.push({
+        userId: oldLiability.userId,
+        action: oldLiability.action,
+        oldAmount: oldLiability.amount,
+        newAmount: 0,
+        unit: oldLiability.unit,
+      });
+    }
+  }
+
   return changes;
 }
 
@@ -141,6 +165,8 @@ function formatLiabilityChanges(
     .map((change) => {
       if (change.oldAmount === 0) {
         return `• New: ${change.action} - ${change.newAmount} ${change.unit}`;
+      } else if (change.newAmount === 0) {
+        return `• Removed: ${change.action} - was ${change.oldAmount} ${change.unit}`;
       } else if (change.newAmount > change.oldAmount) {
         return `• ${change.action} increased from ${change.oldAmount} to ${change.newAmount} ${change.unit}`;
       } else {

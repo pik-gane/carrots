@@ -276,11 +276,12 @@ async function processMessageForCommitment(
           groupId,
           userId: null, // System message
           type: 'system_commitment',
-          content: `📝 New commitment detected: ${rephrasedText}\n\n[View in Commitment Panel](${commitmentLink})`,
+          content: `📝 New commitment detected: ${rephrasedText}`,
           isPrivate: false,
           metadata: {
             commitmentId: commitment.id,
             originalMessageId: messageId,
+            link: commitmentLink, // Store link in metadata for frontend to render
           },
         },
       });
