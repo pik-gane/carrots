@@ -29,6 +29,7 @@ const messagesGetRateLimiter = rateLimit({
 const sendMessageSchema = z.object({
   groupId: z.string().uuid(),
   content: z.string().min(1).max(5000),
+  replyToMessageId: z.string().uuid().optional(),
 });
 
 const listMessagesSchema = z.object({
@@ -53,7 +54,7 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
       return;
     }
 
-    const { groupId, content } = validationResult.data;
+    const { groupId, content, replyToMessageId } = validationResult.data;
     const userId = req.user!.userId;
 
     // Check if user is a member of the group
@@ -74,14 +75,32 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
       return;
     }
 
+    // Check if replying to a private clarification request
+    let isPrivateReply = false;
+    if (replyToMessageId) {
+      const replyToMessage = await prisma.message.findUnique({
+        where: { id: replyToMessageId },
+      });
+
+      // If replying to a clarification request that was sent to this user, make it private
+      if (replyToMessage && 
+          replyToMessage.type === 'clarification_request' && 
+          replyToMessage.isPrivate && 
+          replyToMessage.targetUserId === userId) {
+        isPrivateReply = true;
+      }
+    }
+
     // Create the message
     const message = await prisma.message.create({
       data: {
         groupId,
         userId,
-        type: 'user_message',
+        type: isPrivateReply ? 'clarification_response' : 'user_message',
         content,
-        isPrivate: false,
+        isPrivate: isPrivateReply,
+        targetUserId: isPrivateReply ? null : undefined, // Private replies are to the system
+        metadata: replyToMessageId ? { replyToMessageId } : undefined,
       },
       include: {
         user: {

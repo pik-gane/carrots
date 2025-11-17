@@ -31,6 +31,7 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
   const [error, setError] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
 
@@ -124,8 +125,9 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
     try {
       setSending(true);
       // Send message - it will be echoed back via WebSocket
-      await messagesApi.send(groupId, messageText.trim());
+      await messagesApi.send(groupId, messageText.trim(), replyingTo?.id);
       setMessageText('');
+      setReplyingTo(null); // Clear reply context
       // System messages (commitment, liability) will arrive via WebSocket
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send message');
@@ -208,6 +210,8 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
     }
 
     if (isPrivate) {
+      const isClarificationRequest = message.type === 'clarification_request' && !isOwnMessage;
+      
       return (
         <Box
           key={message.id}
@@ -238,6 +242,21 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
               {message.content}
             </Typography>
+            {isClarificationRequest && (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => {
+                  setReplyingTo(message);
+                  // Focus the input field
+                  const input = document.querySelector('textarea');
+                  if (input) input.focus();
+                }}
+                sx={{ mt: 1 }}
+              >
+                Reply Privately
+              </Button>
+            )}
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
               {formatTimestamp(message.createdAt)}
             </Typography>
@@ -334,12 +353,36 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
 
       {/* Message Input */}
       <Box component="form" onSubmit={handleSendMessage} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <span style={{ fontSize: '1.2em' }}>👥</span>
-            Sending to group (visible to all members)
-          </Typography>
-        </Box>
+        {replyingTo ? (
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1, 
+            p: 1, 
+            bgcolor: 'warning.light', 
+            borderRadius: 1,
+            border: '1px solid',
+            borderColor: 'warning.main',
+          }}>
+            <Typography variant="caption" sx={{ flex: 1 }}>
+              🔒 Replying privately to clarification request
+            </Typography>
+            <Button 
+              size="small" 
+              onClick={() => setReplyingTo(null)}
+              sx={{ minWidth: 'auto', px: 1 }}
+            >
+              Cancel
+            </Button>
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <span style={{ fontSize: '1.2em' }}>👥</span>
+              Sending to group (visible to all members)
+            </Typography>
+          </Box>
+        )}
         <Box sx={{ display: 'flex', gap: 1 }}>
           <TextField
             fullWidth
@@ -347,7 +390,7 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
             maxRows={4}
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
-            placeholder="Type a message... (e.g., 'If Alice does 5 hours of work, I'll do 3 hours')"
+            placeholder={replyingTo ? "Type your private reply..." : "Type a message... (e.g., 'If Alice does 5 hours of work, I'll do 3 hours')"}
             disabled={sending}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -367,9 +410,11 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
         </Box>
       </Box>
 
-      <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-        💡 Tip: You can express commitments naturally in chat. The AI will detect them and create structured commitments automatically.
-      </Typography>
+      {!replyingTo && (
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+          💡 Tip: You can express commitments naturally in chat. The AI will detect them and create structured commitments automatically.
+        </Typography>
+      )}
     </Box>
   );
 }

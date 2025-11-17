@@ -5,10 +5,10 @@ export const messagesApi = {
   /**
    * Send a message to a group
    */
-  send: async (groupId: string, content: string): Promise<Message> => {
+  send: async (groupId: string, content: string, replyToMessageId?: string): Promise<Message> => {
     const response = await apiClient.post<{ message: Message }>(
       '/api/messages',
-      { groupId, content }
+      { groupId, content, replyToMessageId }
     );
     return response.data.message;
   },
