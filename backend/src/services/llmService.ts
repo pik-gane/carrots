@@ -134,8 +134,11 @@ ${response}
       // Get existing commitments for context
       const existingCommitments = await this.getExistingCommitments(groupId);
 
+      // Get current liabilities for context
+      const currentLiabilities = await this.getCurrentLiabilities(groupId);
+
       // Build the prompt
-      prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username, existingCommitments, members);
+      prompt = this.buildPrompt(naturalLanguageText, memberNames, currentUser.user.username, existingCommitments, members, currentLiabilities);
 
       logger.info(`Sending commitment to ${this.providerType} for parsing`, {
         groupId,
@@ -325,7 +328,8 @@ ${response}
     memberNames: string, 
     currentUsername: string,
     existingCommitments: any[],
-    members: any[]
+    members: any[],
+    currentLiabilities: any[]
   ): string {
     // Create a user ID to username mapping
     const userIdToUsername = new Map<string, string>();
@@ -364,6 +368,16 @@ ${response}
     });
 
     const existingCommitmentsJson = JSON.stringify(formattedCommitments, null, 2);
+
+    // Format current liabilities for the prompt
+    const formattedLiabilities = currentLiabilities.map((liability) => ({
+      user: userIdToUsername.get(liability.userId) || 'Unknown',
+      action: liability.action,
+      amount: liability.amount,
+      unit: liability.unit,
+    }));
+
+    const currentLiabilitiesJson = JSON.stringify(formattedLiabilities, null, 2);
 
     return `You are parsing a conditional commitment for the Carrots app.
 
@@ -417,7 +431,7 @@ If successful:
     "conditions": [{ ... }],
     "promises": [{ ... }]
   },
-  "explanation": "A brief explanation of how you interpreted the user's input, especially: (1) which actions you matched to existing actions in the group's commitments, (2) which units you converted or matched to existing units, and (3) any other notable interpretation decisions you made."
+  "explanation": "A brief explanation of how you interpreted the user's input, especially: (1) which actions you matched to existing actions in the group's commitments, (2) which units you converted or matched to existing units, (3) any references to current liabilities that you resolved with actual numbers, and (4) any other notable interpretation decisions you made."
 }
 
 If you need clarification:
@@ -431,7 +445,10 @@ IMPORTANT INSTRUCTIONS:
 - Try to match the actions and units mentioned by the user to actions and units already present in the existing commitments below
 - If an action name is similar to an existing one, use the existing action name for consistency
 - If units don't match but the action does, convert the newly mentioned units to the existing units when possible
-- In your "explanation" field, clearly state when you've matched actions or converted units
+- **IMPORTANT: If the user refers to "what [someone] currently does", "their current commitment", "double what [someone] does", etc., look up that person's current liability in the CURRENT LIABILITIES section below and substitute the actual numbers**
+- **For example: If the user says "if the cat does twice as much as what she currently does", and the cat's current liability for "laundry" is 1 times per week, then interpret this as "if the cat does at least 2 times per week of laundry"**
+- **Always resolve these references by looking up the actual liability amounts and include the resolved numbers in your parsed output**
+- **In your explanation field, clearly state when you've resolved references to current liabilities, showing: "Resolved 'twice what cat does' to 2 times per week based on cat's current laundry liability of 1 times per week"**
 - Only include usernames that exist in the group members list
 - If a username is mentioned but not in the list, ask for clarification
 - If the statement is ambiguous, ask for clarification
@@ -440,7 +457,12 @@ IMPORTANT INSTRUCTIONS:
 - Respond with ONLY valid JSON, no additional text
 
 EXISTING COMMITMENTS IN THIS GROUP:
-${existingCommitmentsJson}`;
+${existingCommitmentsJson}
+
+CURRENT LIABILITIES IN THIS GROUP:
+${currentLiabilitiesJson}
+
+Note: The current liabilities show what each user is currently committed to doing based on all active commitments. When users refer to "what someone currently does" or "their current commitment", use these liability values.`;
   }
 
   /**
@@ -480,6 +502,27 @@ ${existingCommitmentsJson}`;
         createdAt: 'desc',
       },
     });
+  }
+
+  /**
+   * Get current liabilities for the group
+   */
+  private async getCurrentLiabilities(groupId: string) {
+    // Import LiabilityCalculator dynamically to avoid circular dependencies
+    const { LiabilityCalculator } = await import('./liabilityCalculator');
+    const calculator = new LiabilityCalculator();
+    
+    const liabilities = await calculator.calculateGroupLiabilities(groupId);
+    
+    // Filter out zero liabilities and format for the prompt
+    return liabilities
+      .filter((liability) => liability.amount > 0)
+      .map((liability) => ({
+        userId: liability.userId,
+        action: liability.action,
+        amount: liability.amount,
+        unit: liability.unit,
+      }));
   }
 
   /**
@@ -617,6 +660,248 @@ ${existingCommitmentsJson}`;
     } catch (error: any) {
       logger.error('Validation error', { error: error.message });
       return { success: false, error: 'Failed to validate parsed commitment' };
+    }
+  }
+
+  /**
+   * Detect if a chat message contains a commitment
+   * Returns information about whether a commitment was detected, needs clarification, or is ambiguous
+   */
+  async detectCommitmentInMessage(
+    messageContent: string,
+    groupId: string,
+    userId: string
+  ): Promise<{
+    hasCommitment: boolean;
+    needsClarification: boolean;
+    clarificationQuestion?: string;
+    commitment?: ParsedCommitment;
+    rephrased?: string;
+  }> {
+    if (!this.chatModel) {
+      return {
+        hasCommitment: false,
+        needsClarification: false,
+      };
+    }
+
+    try {
+      // Get group members for context
+      const members = await this.getGroupMembers(groupId);
+      const memberNames = members.map((m) => m.user.username).join(', ');
+      const currentUser = members.find((m) => m.userId === userId);
+
+      if (!currentUser) {
+        return {
+          hasCommitment: false,
+          needsClarification: false,
+        };
+      }
+
+      // Build detection prompt
+      const prompt = `You are analyzing a chat message to detect if it contains a commitment or intention to revoke/update a commitment.
+
+Group members: ${memberNames}
+Current user: ${currentUser.user.username}
+
+Message: "${messageContent}"
+
+Analyze if this message contains:
+1. A new commitment (e.g., "If Alice does X, I will do Y")
+2. A revocation of a commitment (e.g., "I'm canceling my previous commitment")
+3. An update to a commitment (e.g., "Actually, I'll do Z instead of Y")
+
+Respond with JSON in this format:
+{
+  "hasCommitment": boolean, // true if the message contains any commitment-related intent
+  "needsClarification": boolean, // true if you're unsure about the commitment details
+  "clarificationQuestion": string (optional), // question to ask the user if clarification is needed
+  "commitment": ParsedCommitment (optional), // structured commitment if detected
+  "rephrased": string (optional), // natural language rephrasing of the commitment
+  "action": "create" | "revoke" | "update" (optional) // type of commitment action
+}
+
+For ParsedCommitment format:
+{
+  "conditions": [
+    {
+      "targetUserId": string (username), // User who must perform the action (or null for aggregate)
+      "action": string,
+      "minAmount": number,
+      "unit": string
+    }
+  ],
+  "promises": [
+    {
+      "action": string,
+      "baseAmount": number,
+      "proportionalAmount": number,
+      "referenceUserId": string (username, optional),
+      "referenceAction": string (optional),
+      "thresholdAmount": number (optional),
+      "maxAmount": number (optional),
+      "unit": string
+    }
+  ]
+}
+
+Guidelines:
+- Only detect clear commitment statements
+- If the message is just casual conversation, set hasCommitment to false
+- If details are ambiguous or missing, set needsClarification to true with a specific question
+- Use usernames (not user IDs) in the parsed commitment
+- Provide a clear, concise rephrasing of the commitment in natural language`;
+
+      const systemMessage = 'You are a commitment detection system for the Carrots app. Analyze messages to detect commitments and respond with valid JSON only.';
+      const messages = [
+        new SystemMessage(systemMessage),
+        new HumanMessage(prompt),
+      ];
+
+      const response = await this.chatModel.invoke(messages);
+      const responseText = response.content.toString();
+
+      // Parse the JSON response
+      let parsedResponse;
+      try {
+        let jsonText = responseText;
+        
+        // Extract from markdown code blocks
+        const markdownMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) || 
+                             responseText.match(/```\s*([\s\S]*?)\s*```/);
+        if (markdownMatch) {
+          jsonText = markdownMatch[1];
+        } else {
+          // Extract JSON object from text
+          const firstBrace = responseText.indexOf('{');
+          const lastBrace = responseText.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            jsonText = responseText.substring(firstBrace, lastBrace + 1);
+          }
+        }
+        
+        parsedResponse = JSON.parse(jsonText.trim());
+      } catch (parseError) {
+        logger.error('Failed to parse commitment detection response', { responseText, parseError });
+        return {
+          hasCommitment: false,
+          needsClarification: false,
+        };
+      }
+
+      // If no commitment detected, return early
+      if (!parsedResponse.hasCommitment) {
+        return {
+          hasCommitment: false,
+          needsClarification: false,
+        };
+      }
+
+      // If clarification is needed
+      if (parsedResponse.needsClarification) {
+        return {
+          hasCommitment: true,
+          needsClarification: true,
+          clarificationQuestion: parsedResponse.clarificationQuestion || 'Could you clarify your commitment?',
+        };
+      }
+
+      // If commitment is detected and clear
+      if (parsedResponse.commitment) {
+        // Validate and transform the parsed commitment
+        const validatedCommitment = await this.validateAndTransformParsedCommitment(
+          parsedResponse.commitment,
+          groupId,
+          members
+        );
+
+        if (validatedCommitment.success && validatedCommitment.commitment) {
+          return {
+            hasCommitment: true,
+            needsClarification: false,
+            commitment: validatedCommitment.commitment,
+            rephrased: parsedResponse.rephrased,
+          };
+        } else {
+          // Validation failed, ask LLM to rephrase the error as a natural language clarification
+          const naturalClarification = await this.convertValidationErrorToClarification(
+            validatedCommitment.error || 'Invalid commitment format',
+            messageContent,
+            parsedResponse.commitment
+          );
+          
+          return {
+            hasCommitment: true,
+            needsClarification: true,
+            clarificationQuestion: naturalClarification,
+          };
+        }
+      }
+
+      // Default: commitment detected but no details
+      return {
+        hasCommitment: true,
+        needsClarification: true,
+        clarificationQuestion: 'Could you provide more details about your commitment?',
+      };
+    } catch (error: any) {
+      logger.error('Error detecting commitment in message', { error: error.message });
+      return {
+        hasCommitment: false,
+        needsClarification: false,
+      };
+    }
+  }
+
+  /**
+   * Convert a technical validation error into a natural language clarification question
+   */
+  private async convertValidationErrorToClarification(
+    validationError: string,
+    originalMessage: string,
+    attemptedParse: any
+  ): Promise<string> {
+    if (!this.chatModel) {
+      // Fallback to a generic clarification if LLM not available
+      return 'Could you clarify the details of your commitment?';
+    }
+
+    try {
+      const prompt = `You are helping a user create a commitment, but their input has a validation issue.
+
+Original message: "${originalMessage}"
+What we understood: ${JSON.stringify(attemptedParse, null, 2)}
+Technical validation error: "${validationError}"
+
+Your task: Convert the validation error into a friendly, natural language clarification question that helps the user fix the issue.
+
+Examples:
+- Technical: "Condition minAmount must be a positive number"
+  Natural: "How many hours/minutes should the minimum be for that condition?"
+
+- Technical: "Promise amounts must be non-negative"
+  Natural: "How much would you like to commit to? Please provide a positive amount."
+
+- Technical: "User 'Bob' is not a member of this group"
+  Natural: "I don't see Bob in this group. Did you mean someone else?"
+
+Respond with ONLY the natural language clarification question, no additional formatting or JSON.`;
+
+      const systemMessage = 'You are a helpful assistant that converts technical errors into friendly clarification questions.';
+      const messages = [
+        new SystemMessage(systemMessage),
+        new HumanMessage(prompt),
+      ];
+
+      const response = await this.chatModel.invoke(messages);
+      const clarification = response.content.toString().trim();
+
+      // Remove any quotes or extra formatting
+      return clarification.replace(/^["']|["']$/g, '').trim() || 'Could you clarify the details of your commitment?';
+    } catch (error: any) {
+      logger.error('Error converting validation error to clarification', { error: error.message });
+      // Fallback to a generic clarification
+      return 'Could you clarify the details of your commitment?';
     }
   }
 }

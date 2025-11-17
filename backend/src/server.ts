@@ -1,8 +1,10 @@
 import express, { Application } from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
+import { initializeWebSocket } from './services/websocket';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -10,12 +12,19 @@ import userRoutes from './routes/users';
 import groupRoutes from './routes/groups';
 import commitmentRoutes from './routes/commitments';
 import liabilityRoutes from './routes/liabilities';
+import messageRoutes from './routes/messages';
 
 // Load environment variables
 dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
+
+// Create HTTP server
+const httpServer = createServer(app);
+
+// Initialize WebSocket
+initializeWebSocket(httpServer);
 
 // Middleware
 app.use(cors({
@@ -47,6 +56,7 @@ app.get('/api', (_req, res) => {
       groups: '/api/groups',
       commitments: '/api/commitments',
       liabilities: '/api/liabilities',
+      messages: '/api/messages',
     },
   });
 });
@@ -57,6 +67,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/commitments', commitmentRoutes);
 app.use('/api', liabilityRoutes);
+app.use('/api/messages', messageRoutes);
 
 // 404 handler
 app.use((_req, res) => {
@@ -67,8 +78,9 @@ app.use((_req, res) => {
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   logger.info(`Server is running on port ${PORT}`);
+  logger.info(`WebSocket server initialized`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 

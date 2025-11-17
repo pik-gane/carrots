@@ -12,6 +12,7 @@ import { logger } from '../utils/logger';
 import { authenticate } from '../middleware/authenticate';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import { llmService } from '../services/llmService';
+import { recalculateLiabilitiesAndNotify } from '../services/liabilityNotificationService';
 import { z } from 'zod';
 
 const router = Router();
@@ -285,6 +286,12 @@ router.post('/', apiRateLimiter, authenticate, async (req: Request, res: Respons
     });
 
     logger.info('Commitment created', { commitmentId: commitment.id, creatorId: userId, groupId });
+    
+    // Recalculate liabilities and notify in chat
+    // Do this asynchronously so it doesn't block the response
+    recalculateLiabilitiesAndNotify(groupId).catch((error) => {
+      logger.error('Failed to recalculate liabilities after commitment creation', { commitmentId: commitment.id, error });
+    });
     
     // Return commitment with warnings if any
     const response: any = commitment;
@@ -674,6 +681,12 @@ router.put('/:id', apiRateLimiter, authenticate, async (req: Request, res: Respo
 
     logger.info('Commitment updated', { commitmentId: id, updatedBy: userId });
     
+    // Recalculate liabilities and notify in chat
+    // Do this asynchronously so it doesn't block the response
+    recalculateLiabilitiesAndNotify(updatedCommitment.groupId).catch((error) => {
+      logger.error('Failed to recalculate liabilities after commitment update', { commitmentId: id, error });
+    });
+    
     // Return commitment with warnings if any
     const response: any = updatedCommitment;
     if (warnings.length > 0) {
@@ -752,6 +765,13 @@ router.delete('/:id', apiRateLimiter, authenticate, async (req: Request, res: Re
     });
 
     logger.info('Commitment revoked', { commitmentId: id, revokedBy: userId });
+    
+    // Recalculate liabilities and notify in chat
+    // Do this asynchronously so it doesn't block the response
+    recalculateLiabilitiesAndNotify(revokedCommitment.groupId).catch((error) => {
+      logger.error('Failed to recalculate liabilities after commitment revocation', { commitmentId: id, error });
+    });
+    
     res.status(200).json(revokedCommitment);
   } catch (error) {
     logger.error('Revoke commitment error', { error });
