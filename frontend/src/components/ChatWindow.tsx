@@ -333,10 +333,6 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
         </Box>
       );
     }
-          </Paper>
-        </Box>
-      );
-    }
 
     // Regular user message
     return (
