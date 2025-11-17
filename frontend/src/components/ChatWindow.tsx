@@ -7,15 +7,20 @@ import {
   Typography,
   CircularProgress,
   Alert,
-  Chip,
-  Link as MuiLink,
+  Badge,
+  Switch,
+  FormControlLabel,
+  Tabs,
+  Tab,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
-import { Send, Info } from '@mui/icons-material';
+import { Send, BugReport } from '@mui/icons-material';
 import { io, Socket } from 'socket.io-client';
-import { Link as RouterLink } from 'react-router-dom';
 import { Message } from '../types';
 import { messagesApi } from '../api/messages';
 import { useAuth } from '../hooks/useAuth';
+import { ChatPane } from './ChatPane';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -24,16 +29,47 @@ interface ChatWindowProps {
   groupName: string;
 }
 
-export function ChatWindow({ groupId }: ChatWindowProps) {
+export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
   const { user } = useAuth();
+  const theme = useTheme();
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md')); // >= 768px
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [debugMode, setDebugMode] = useState(() => {
+    // Load debug mode from localStorage
+    const saved = localStorage.getItem('chatDebugMode');
+    return saved === 'true';
+  });
+  const [activeTab, setActiveTab] = useState(0); // 0 = Public, 1 = Private
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+
+  // Save debug mode to localStorage
+  useEffect(() => {
+    localStorage.setItem('chatDebugMode', debugMode.toString());
+  }, [debugMode]);
+
+  // Separate messages into public and private
+  const publicMessages = messages.filter(
+    (m) =>
+      !m.isPrivate &&
+      (m.type === 'user_message' || m.type === 'system_commitment' || m.type === 'system_liability')
+  );
+
+  const privateMessages = messages.filter(
+    (m) =>
+      m.isPrivate &&
+      (m.type === 'clarification_request' ||
+        m.type === 'clarification_response' ||
+        (m.targetUserId === user?.id || m.userId === user?.id))
+  );
+
+  // Count unread private messages (simplified - just show count of private messages)
+  const unreadPrivateCount = privateMessages.length;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -148,233 +184,15 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
            date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const renderMessage = (message: Message) => {
-    const isOwnMessage = message.userId === user?.id;
-    const isSystemMessage = message.userId === null;
-    const isPrivate = message.isPrivate;
-
-    // Handle private clarification requests first (system messages to specific user)
-    if (isPrivate && message.type === 'clarification_request') {
-      return (
-        <Box
-          key={message.id}
-          sx={{
-            mb: 2,
-            display: 'flex',
-            justifyContent: 'flex-start',
-          }}
-        >
-          <Paper
-            elevation={1}
-            sx={{
-              p: 2,
-              maxWidth: '70%',
-              bgcolor: 'warning.light',
-              borderLeft: '4px solid',
-              borderLeftColor: 'warning.main',
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Typography variant="caption" fontWeight="bold">
-                System (Private)
-              </Typography>
-              <Chip label="Clarification Needed" size="small" color="warning" />
-            </Box>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {message.content}
-            </Typography>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => {
-                setReplyingTo(message);
-                // Focus the input field
-                const input = document.querySelector('textarea');
-                if (input) input.focus();
-              }}
-              sx={{ mt: 1 }}
-            >
-              Reply Privately
-            </Button>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              {formatTimestamp(message.createdAt)}
-            </Typography>
-          </Paper>
-        </Box>
-      );
+  const handleReply = (message: Message) => {
+    setReplyingTo(message);
+    // Switch to private tab on mobile
+    if (!isDesktop) {
+      setActiveTab(1);
     }
-
-    // Different rendering for different message types
-    if (isSystemMessage) {
-      return (
-        <Box
-          key={message.id}
-          sx={{
-            mb: 2,
-            display: 'flex',
-            justifyContent: 'center',
-          }}
-        >
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2,
-              maxWidth: '80%',
-              bgcolor: message.type === 'system_commitment' ? 'primary.light' : 
-                       message.type === 'system_liability' ? 'info.light' : 
-                       'grey.200',
-              color: 'text.primary',
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Info fontSize="small" />
-              <Typography variant="caption" fontWeight="bold">
-                System
-              </Typography>
-              {message.type === 'system_commitment' && (
-                <Chip label="Commitment" size="small" color="primary" />
-              )}
-              {message.type === 'system_liability' && (
-                <Chip label="Liability Update" size="small" color="info" />
-              )}
-            </Box>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {message.content}
-            </Typography>
-            {message.type === 'system_commitment' && message.metadata?.link && (
-              <Box sx={{ mt: 1 }}>
-                <MuiLink
-                  component={RouterLink}
-                  to={message.metadata.link as string}
-                  sx={{ fontSize: '0.875rem', fontWeight: 500 }}
-                >
-                  View in Commitment Panel →
-                </MuiLink>
-              </Box>
-            )}
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              {formatTimestamp(message.createdAt)}
-            </Typography>
-          </Paper>
-        </Box>
-      );
-    }
-
-    // Handle private clarification responses (user's private replies)
-    if (isPrivate && message.type === 'clarification_response') {
-      return (
-        <Box
-          key={message.id}
-          sx={{
-            mb: 2,
-            display: 'flex',
-            justifyContent: 'flex-end',
-          }}
-        >
-          <Paper
-            elevation={1}
-            sx={{
-              p: 2,
-              maxWidth: '70%',
-              bgcolor: 'warning.light',
-              borderLeft: '4px solid',
-              borderLeftColor: 'warning.main',
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Typography variant="caption" fontWeight="bold">
-                {message.user?.username} (Private Reply)
-              </Typography>
-            </Box>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {message.content}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              {formatTimestamp(message.createdAt)}
-            </Typography>
-          </Paper>
-        </Box>
-      );
-    }
-
-    // Other private messages (shouldn't normally happen, but handle gracefully)
-    if (isPrivate) {
-      return (
-        <Box
-          key={message.id}
-          sx={{
-            mb: 2,
-            display: 'flex',
-            justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
-          }}
-        >
-          <Paper
-            elevation={1}
-            sx={{
-              p: 2,
-              maxWidth: '70%',
-              bgcolor: 'warning.light',
-              borderLeft: '4px solid',
-              borderLeftColor: 'warning.main',
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Typography variant="caption" fontWeight="bold">
-                {message.user?.username || 'System'} (Private)
-              </Typography>
-            </Box>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {message.content}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              {formatTimestamp(message.createdAt)}
-            </Typography>
-          </Paper>
-        </Box>
-      );
-    }
-
-    // Regular user message
-    return (
-      <Box
-        key={message.id}
-        sx={{
-          mb: 2,
-          display: 'flex',
-          justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
-        }}
-      >
-        <Paper
-          elevation={1}
-          sx={{
-            p: 2,
-            maxWidth: '70%',
-            bgcolor: isOwnMessage ? 'primary.main' : 'grey.100',
-            color: isOwnMessage ? 'primary.contrastText' : 'text.primary',
-          }}
-        >
-          {!isOwnMessage && (
-            <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 0.5 }}>
-              {message.user?.username}
-            </Typography>
-          )}
-          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-            {message.content}
-          </Typography>
-          <Typography 
-            variant="caption" 
-            sx={{ 
-              mt: 1, 
-              display: 'block',
-              opacity: 0.7,
-              color: isOwnMessage ? 'inherit' : 'text.secondary',
-            }}
-          >
-            {formatTimestamp(message.createdAt)}
-          </Typography>
-        </Paper>
-      </Box>
-    );
+    // Focus the input field
+    const input = document.querySelector('textarea');
+    if (input) input.focus();
   };
 
   if (loading && messages.length === 0) {
@@ -387,41 +205,171 @@ export function ChatWindow({ groupId }: ChatWindowProps) {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          pb: 2,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          mb: 2,
+        }}
+      >
+        <Typography variant="h6">{groupName}</Typography>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={debugMode}
+              onChange={(e) => setDebugMode(e.target.checked)}
+              size="small"
+            />
+          }
+          label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <BugReport fontSize="small" />
+              <Typography variant="caption">Debug Mode</Typography>
+            </Box>
+          }
+        />
+      </Box>
+
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
           {error}
         </Alert>
       )}
 
-      {/* Messages Area */}
-      <Paper
-        elevation={0}
-        sx={{
-          flex: 1,
-          p: 2,
-          overflowY: 'auto',
-          bgcolor: 'grey.50',
-          minHeight: '400px',
-          maxHeight: '600px',
-          mb: 2,
-        }}
-      >
-        {messages.length === 0 ? (
-          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
-            <Typography color="text.secondary">
-              No messages yet. Start the conversation!
-            </Typography>
-          </Box>
-        ) : (
-          <>
-            {messages.map(renderMessage)}
-            <div ref={messagesEndRef} />
-          </>
-        )}
-      </Paper>
+      {/* Desktop: Split Panes */}
+      {isDesktop ? (
+        <Box sx={{ flex: 1, display: 'flex', gap: 2, minHeight: 0 }}>
+          {/* Public Pane */}
+          <Paper
+            elevation={0}
+            sx={{
+              flex: '0 0 60%',
+              display: 'flex',
+              flexDirection: 'column',
+              bgcolor: 'grey.50',
+              minHeight: 0,
+            }}
+          >
+            <Box
+              sx={{
+                p: 1.5,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'background.paper',
+              }}
+            >
+              <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <span>👥</span> Group Chat
+              </Typography>
+            </Box>
+            <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              <ChatPane
+                messages={publicMessages}
+                currentUserId={user?.id}
+                debugMode={debugMode}
+                formatTimestamp={formatTimestamp}
+              />
+              <div ref={messagesEndRef} />
+            </Box>
+          </Paper>
+
+          {/* Private Pane */}
+          <Paper
+            elevation={0}
+            sx={{
+              flex: '0 0 40%',
+              display: 'flex',
+              flexDirection: 'column',
+              bgcolor: 'grey.50',
+              minHeight: 0,
+            }}
+          >
+            <Box
+              sx={{
+                p: 1.5,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'background.paper',
+              }}
+            >
+              <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <span>🔒</span> Private Clarifications
+                {unreadPrivateCount > 0 && (
+                  <Badge badgeContent={unreadPrivateCount} color="warning" sx={{ ml: 1 }} />
+                )}
+              </Typography>
+            </Box>
+            <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              <ChatPane
+                messages={privateMessages}
+                currentUserId={user?.id}
+                debugMode={debugMode}
+                onReply={handleReply}
+                formatTimestamp={formatTimestamp}
+              />
+            </Box>
+          </Paper>
+        </Box>
+      ) : (
+        /* Mobile: Tabs */
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, newValue) => setActiveTab(newValue)}
+            sx={{ borderBottom: 1, borderColor: 'divider' }}
+          >
+            <Tab label="👥 Public" />
+            <Tab
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <span>🔒 Private</span>
+                  {unreadPrivateCount > 0 && (
+                    <Badge badgeContent={unreadPrivateCount} color="warning" />
+                  )}
+                </Box>
+              }
+            />
+          </Tabs>
+          <Paper
+            elevation={0}
+            sx={{
+              flex: 1,
+              bgcolor: 'grey.50',
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              {activeTab === 0 ? (
+                <ChatPane
+                  messages={publicMessages}
+                  currentUserId={user?.id}
+                  debugMode={debugMode}
+                  formatTimestamp={formatTimestamp}
+                />
+              ) : (
+                <ChatPane
+                  messages={privateMessages}
+                  currentUserId={user?.id}
+                  debugMode={debugMode}
+                  onReply={handleReply}
+                  formatTimestamp={formatTimestamp}
+                />
+              )}
+              <div ref={messagesEndRef} />
+            </Box>
+          </Paper>
+        </Box>
+      )}
 
       {/* Message Input */}
-      <Box component="form" onSubmit={handleSendMessage} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Box component="form" onSubmit={handleSendMessage} sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
         {replyingTo ? (
           <Box sx={{ 
             display: 'flex', 
