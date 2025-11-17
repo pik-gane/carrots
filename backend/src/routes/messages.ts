@@ -274,8 +274,22 @@ async function processMessageForCommitment(
 
       if (!existingResponse) {
         // This message is likely a response to the clarification
+        // Update the message to make it private
+        await prisma.message.update({
+          where: { id: messageId },
+          data: {
+            type: 'clarification_response',
+            isPrivate: true,
+            targetUserId: null, // Private to system only
+            metadata: {
+              replyToMessageId: recentClarification.id,
+            },
+          },
+        });
+        
         // Get the original message that triggered the clarification
-        const originalMessageId = recentClarification.metadata?.originalMessageId as string;
+        const metadata = recentClarification.metadata as { originalMessageId?: string } | null;
+        const originalMessageId = metadata?.originalMessageId;
         if (originalMessageId) {
           const originalMessage = await prisma.message.findUnique({
             where: { id: originalMessageId },
