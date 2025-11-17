@@ -241,6 +241,111 @@ async function processMessageForCommitment(
       return;
     }
 
+    // Check if there's a pending clarification for this user
+    // Look for recent clarification requests (within last 10 minutes) that haven't been responded to
+    const recentClarification = await prisma.message.findFirst({
+      where: {
+        groupId,
+        type: 'clarification_request',
+        targetUserId: userId,
+        createdAt: {
+          gte: new Date(Date.now() - 10 * 60 * 1000), // Last 10 minutes
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // If there's a pending clarification, treat this message as a clarification response
+    if (recentClarification) {
+      // Check if user has already responded to this clarification
+      const existingResponse = await prisma.message.findFirst({
+        where: {
+          groupId,
+          userId,
+          type: 'clarification_response',
+          metadata: {
+            path: ['replyToMessageId'],
+            equals: recentClarification.id,
+          },
+        },
+      });
+
+      if (!existingResponse) {
+        // This message is likely a response to the clarification
+        // Get the original message that triggered the clarification
+        const originalMessageId = recentClarification.metadata?.originalMessageId as string;
+        if (originalMessageId) {
+          const originalMessage = await prisma.message.findUnique({
+            where: { id: originalMessageId },
+          });
+
+          if (originalMessage) {
+            // Combine original message with clarification response
+            const combinedContext = `${originalMessage.content}\n\nClarification: ${content}`;
+            
+            // Try to detect commitment with the combined context
+            const detectionResult = await llmService.detectCommitmentInMessage(
+              combinedContext,
+              groupId,
+              userId
+            );
+
+            if (detectionResult.hasCommitment && detectionResult.commitment) {
+              // Commitment detected after clarification
+              const commitment = await prisma.commitment.create({
+                data: {
+                  groupId,
+                  creatorId: userId,
+                  status: 'active',
+                  conditionType: detectionResult.commitment.conditions.some((c: any) => !c.targetUserId)
+                    ? 'aggregate'
+                    : 'single_user',
+                  naturalLanguageText: originalMessage.content,
+                  parsedCommitment: detectionResult.commitment as any,
+                },
+              });
+
+              // Post system message with the rephrased commitment
+              const rephrasedText = detectionResult.rephrased || 'Commitment created';
+              const commitmentLink = `/groups/${groupId}?tab=commitments`;
+
+              const commitmentMessage = await prisma.message.create({
+                data: {
+                  groupId,
+                  userId: null, // System message
+                  type: 'system_commitment',
+                  content: `📝 New commitment detected: ${rephrasedText}`,
+                  isPrivate: false,
+                  metadata: {
+                    commitmentId: commitment.id,
+                    originalMessageId,
+                    clarificationMessageId: recentClarification.id,
+                    link: commitmentLink,
+                  },
+                },
+              });
+              
+              // Emit commitment message to all group members
+              emitNewMessage(groupId, commitmentMessage);
+
+              logger.info('Commitment created from clarification', { 
+                commitmentId: commitment.id, 
+                originalMessageId, 
+                clarificationId: recentClarification.id 
+              });
+
+              // Recalculate liabilities
+              await recalculateLiabilitiesAndNotify(groupId);
+              return; // Done processing
+            }
+          }
+        }
+      }
+    }
+
+    // No pending clarification or not a response - process as normal message
     // Detect if the message contains a commitment
     const detectionResult = await llmService.detectCommitmentInMessage(content, groupId, userId);
 
