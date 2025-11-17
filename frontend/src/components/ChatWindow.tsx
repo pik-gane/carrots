@@ -205,19 +205,21 @@ export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
+      {/* Header - Fixed at top */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          pb: 2,
+          py: 1,
+          px: 2,
           borderBottom: '1px solid',
           borderColor: 'divider',
-          mb: 2,
+          bgcolor: 'background.paper',
+          flexShrink: 0,
         }}
       >
-        <Typography variant="h6">{groupName}</Typography>
+        <Typography variant="subtitle1" fontWeight="600">{groupName}</Typography>
         <FormControlLabel
           control={
             <Switch
@@ -229,21 +231,22 @@ export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
           label={
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <BugReport fontSize="small" />
-              <Typography variant="caption">Debug Mode</Typography>
+              <Typography variant="caption">Debug</Typography>
             </Box>
           }
+          sx={{ m: 0 }}
         />
       </Box>
 
       {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
+        <Alert severity="error" onClose={() => setError(null)} sx={{ mx: 2, mt: 1, flexShrink: 0 }}>
           {error}
         </Alert>
       )}
 
       {/* Desktop: Split Panes */}
       {isDesktop ? (
-        <Box sx={{ flex: 1, display: 'flex', gap: 2, minHeight: 0 }}>
+        <Box sx={{ flex: 1, display: 'flex', gap: 2, minHeight: 0, p: 2 }}>
           {/* Public Pane */}
           <Paper
             elevation={0}
@@ -252,22 +255,23 @@ export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
               display: 'flex',
               flexDirection: 'column',
               bgcolor: 'grey.50',
-              minHeight: 0,
+              overflow: 'hidden',
             }}
           >
             <Box
               sx={{
-                p: 1.5,
+                p: 1,
                 borderBottom: '1px solid',
                 borderColor: 'divider',
                 bgcolor: 'background.paper',
+                flexShrink: 0,
               }}
             >
               <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <span>👥</span> Group Chat
               </Typography>
             </Box>
-            <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            <Box sx={{ flex: 1, overflowY: 'auto' }}>
               <ChatPane
                 messages={publicMessages}
                 currentUserId={user?.id}
@@ -286,15 +290,16 @@ export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
               display: 'flex',
               flexDirection: 'column',
               bgcolor: 'grey.50',
-              minHeight: 0,
+              overflow: 'hidden',
             }}
           >
             <Box
               sx={{
-                p: 1.5,
+                p: 1,
                 borderBottom: '1px solid',
                 borderColor: 'divider',
                 bgcolor: 'background.paper',
+                flexShrink: 0,
               }}
             >
               <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -304,7 +309,7 @@ export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
                 )}
               </Typography>
             </Box>
-            <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            <Box sx={{ flex: 1, overflowY: 'auto' }}>
               <ChatPane
                 messages={privateMessages}
                 currentUserId={user?.id}
@@ -317,11 +322,11 @@ export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
         </Box>
       ) : (
         /* Mobile: Tabs */
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, p: 2 }}>
           <Tabs
             value={activeTab}
             onChange={(_, newValue) => setActiveTab(newValue)}
-            sx={{ borderBottom: 1, borderColor: 'divider' }}
+            sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}
           >
             <Tab label="👥 Public" />
             <Tab
@@ -340,12 +345,12 @@ export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
             sx={{
               flex: 1,
               bgcolor: 'grey.50',
-              minHeight: 0,
+              overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
             }}
           >
-            <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            <Box sx={{ flex: 1, overflowY: 'auto' }}>
               {activeTab === 0 ? (
                 <ChatPane
                   messages={publicMessages}
@@ -368,8 +373,8 @@ export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
         </Box>
       )}
 
-      {/* Message Input */}
-      <Box component="form" onSubmit={handleSendMessage} sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
+      {/* Message Input - Fixed at bottom */}
+      <Box component="form" onSubmit={handleSendMessage} sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 2, bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
         {replyingTo ? (
           <Box sx={{ 
             display: 'flex', 
@@ -393,12 +398,10 @@ export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
             </Button>
           </Box>
         ) : (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <span style={{ fontSize: '1.2em' }}>👥</span>
-              Sending to group (visible to all members)
-            </Typography>
-          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <span style={{ fontSize: '1.2em' }}>👥</span>
+            Sending to group (visible to all members)
+          </Typography>
         )}
         <Box sx={{ display: 'flex', gap: 1 }}>
           <TextField
@@ -425,13 +428,12 @@ export function ChatWindow({ groupId, groupName }: ChatWindowProps) {
             {sending ? <CircularProgress size={24} /> : <Send />}
           </Button>
         </Box>
+        {!replyingTo && (
+          <Typography variant="caption" color="text.secondary">
+            💡 Tip: You can express commitments naturally in chat. The AI will detect them and create structured commitments automatically.
+          </Typography>
+        )}
       </Box>
-
-      {!replyingTo && (
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-          💡 Tip: You can express commitments naturally in chat. The AI will detect them and create structured commitments automatically.
-        </Typography>
-      )}
     </Box>
   );
 }
