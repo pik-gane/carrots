@@ -105,6 +105,7 @@ export interface NLPParseResponse {
     prompt: string;
     response: string;
     provider: string;
+    timestamp?: string;
   };
 }
 
@@ -113,13 +114,27 @@ export interface ApiError {
   statusCode: number;
 }
 
+export interface MessageMetadata {
+  commitmentId?: string;
+  originalMessageId?: string;
+  clarificationMessageId?: string;
+  replyToMessageId?: string;
+  link?: string;
+  debug?: {
+    prompt: string;
+    response: string;
+    provider: string;
+    timestamp?: string;
+  };
+}
+
 export interface Message {
   id: string;
   groupId: string;
   userId: string | null;
   type: 'user_message' | 'system_commitment' | 'system_liability' | 'clarification_request' | 'clarification_response';
   content: string;
-  metadata?: any;
+  metadata?: MessageMetadata;
   isPrivate: boolean;
   targetUserId?: string | null;
   createdAt: string;

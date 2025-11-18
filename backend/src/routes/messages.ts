@@ -306,6 +306,17 @@ async function processMessageForCommitment(
               userId
             );
 
+            // Update the clarification response message with debug info
+            await prisma.message.update({
+              where: { id: messageId },
+              data: {
+                metadata: {
+                  replyToMessageId: recentClarification.id,
+                  debug: detectionResult.debug,
+                },
+              },
+            });
+
             if (detectionResult.hasCommitment && detectionResult.commitment) {
               // Commitment detected after clarification
               const commitment = await prisma.commitment.create({
@@ -337,6 +348,7 @@ async function processMessageForCommitment(
                     originalMessageId,
                     clarificationMessageId: recentClarification.id,
                     link: commitmentLink,
+                    debug: detectionResult.debug,
                   },
                 },
               });
@@ -363,6 +375,16 @@ async function processMessageForCommitment(
     // Detect if the message contains a commitment
     const detectionResult = await llmService.detectCommitmentInMessage(content, groupId, userId);
 
+    // Store debug info with the user's message for debugging purposes
+    await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        metadata: {
+          debug: detectionResult.debug,
+        },
+      },
+    });
+
     if (!detectionResult.hasCommitment) {
       // No commitment detected, nothing to do
       return;
@@ -380,6 +402,7 @@ async function processMessageForCommitment(
           targetUserId: userId,
           metadata: {
             originalMessageId: messageId,
+            debug: detectionResult.debug,
           },
         },
       });
@@ -420,6 +443,7 @@ async function processMessageForCommitment(
             commitmentId: commitment.id,
             originalMessageId: messageId,
             link: commitmentLink, // Store link in metadata for frontend to render
+            debug: detectionResult.debug,
           },
         },
       });

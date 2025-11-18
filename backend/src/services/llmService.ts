@@ -677,6 +677,12 @@ Note: The current liabilities show what each user is currently committed to doin
     clarificationQuestion?: string;
     commitment?: ParsedCommitment;
     rephrased?: string;
+    debug?: {
+      prompt: string;
+      response: string;
+      provider: string;
+      timestamp: string;
+    };
   }> {
     if (!this.chatModel) {
       return {
@@ -761,6 +767,14 @@ Guidelines:
       const response = await this.chatModel.invoke(messages);
       const responseText = response.content.toString();
 
+      // Capture debug information
+      const debugInfo = {
+        prompt,
+        response: responseText,
+        provider: this.providerType,
+        timestamp: new Date().toISOString(),
+      };
+
       // Parse the JSON response
       let parsedResponse;
       try {
@@ -786,6 +800,7 @@ Guidelines:
         return {
           hasCommitment: false,
           needsClarification: false,
+          debug: debugInfo,
         };
       }
 
@@ -794,6 +809,7 @@ Guidelines:
         return {
           hasCommitment: false,
           needsClarification: false,
+          debug: debugInfo,
         };
       }
 
@@ -803,6 +819,7 @@ Guidelines:
           hasCommitment: true,
           needsClarification: true,
           clarificationQuestion: parsedResponse.clarificationQuestion || 'Could you clarify your commitment?',
+          debug: debugInfo,
         };
       }
 
@@ -821,6 +838,7 @@ Guidelines:
             needsClarification: false,
             commitment: validatedCommitment.commitment,
             rephrased: parsedResponse.rephrased,
+            debug: debugInfo,
           };
         } else {
           // Validation failed, ask LLM to rephrase the error as a natural language clarification
@@ -834,6 +852,7 @@ Guidelines:
             hasCommitment: true,
             needsClarification: true,
             clarificationQuestion: naturalClarification,
+            debug: debugInfo,
           };
         }
       }
@@ -843,6 +862,7 @@ Guidelines:
         hasCommitment: true,
         needsClarification: true,
         clarificationQuestion: 'Could you provide more details about your commitment?',
+        debug: debugInfo,
       };
     } catch (error: any) {
       logger.error('Error detecting commitment in message', { error: error.message });

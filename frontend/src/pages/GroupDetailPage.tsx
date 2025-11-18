@@ -370,7 +370,7 @@ export default function GroupDetailPage() {
                 <Tab label="Liabilities" />
               </Tabs>
 
-              <Box sx={{ p: 3 }}>
+              <Box sx={{ p: activeTab === 0 ? 0 : 3, height: activeTab === 0 ? '70vh' : 'auto' }}>
                 {/* Chat Tab */}
                 {activeTab === 0 && (
                   <ChatWindow groupId={id!} groupName={group.name} />
